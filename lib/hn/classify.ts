@@ -191,15 +191,21 @@ export function costUsd(u: Usage): number {
 export type RunStats = Usage & { batches: number; failedBatches: number; verdicts: number; problems: string[] };
 
 /**
- * Classifies candidates in batches with bounded concurrency. A failed batch is retried one
- * comment at a time, so one bad comment cannot sink its neighbours; whatever still fails is
- * reported and left for the next run.
+ * Classifies candidates in batches with bounded concurrency. A failed batch is split in half and
+ * each half retried, down to single comments, so one bad comment cannot sink its neighbours and a
+ * batch of 20 costs at most a few extra calls rather than 20. Whatever still fails is reported
+ * (as it happens, through onProblem) and left for the next run.
  */
 export async function classifyAll(
   candidates: Candidate[],
   classifier: Classifier,
   topicSlugs: ReadonlySet<string>,
-  opts: { batchSize?: number; concurrency?: number; onVerdicts: (v: CommentVerdict[]) => Promise<void> | void },
+  opts: {
+    batchSize?: number;
+    concurrency?: number;
+    onVerdicts: (v: CommentVerdict[]) => Promise<void> | void;
+    onProblem?: (p: string) => void;
+  },
 ): Promise<RunStats> {
   const batchSize = opts.batchSize ?? 12;
   const concurrency = opts.concurrency ?? 4;
@@ -207,6 +213,10 @@ export async function classifyAll(
   for (let i = 0; i < candidates.length; i += batchSize) batches.push(candidates.slice(i, i + batchSize));
 
   const stats: RunStats = { inputTokens: 0, outputTokens: 0, batches: 0, failedBatches: 0, verdicts: 0, problems: [] };
+  const problem = (p: string) => {
+    stats.problems.push(p);
+    opts.onProblem?.(p);
+  };
 
   async function run(batch: Candidate[]): Promise<boolean> {
     try {
@@ -214,16 +224,27 @@ export async function classifyAll(
       stats.inputTokens += usage.inputTokens;
       stats.outputTokens += usage.outputTokens;
       const { verdicts, problems } = validateVerdicts(batch, raw, topicSlugs);
-      stats.problems.push(...problems);
+      problems.forEach(problem);
       stats.verdicts += verdicts.length;
       await opts.onVerdicts(verdicts);
       return true;
     } catch (err) {
       // Authentication and permission errors will fail every batch: stop instead of retrying.
       if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError || err instanceof ClassifierFatal) throw err;
-      stats.problems.push(`batch of ${batch.length} failed: ${err instanceof Error ? err.message : String(err)}`);
+      // Keep the reason short: CLI errors can echo the whole command line.
+      const why = (err instanceof Error ? err.message : String(err)).split("\n")[0].slice(0, 200);
+      problem(`batch of ${batch.length} (comments ${batch[0].commentId}..${batch.at(-1)!.commentId}) failed: ${why}`);
       return false;
     }
+  }
+
+  /** Halves until it works or a single comment fails on its own. */
+  async function runSplitting(batch: Candidate[]): Promise<void> {
+    if (await run(batch)) return;
+    if (batch.length === 1) return;
+    const mid = Math.ceil(batch.length / 2);
+    await runSplitting(batch.slice(0, mid));
+    await runSplitting(batch.slice(mid));
   }
 
   let next = 0;
@@ -233,7 +254,11 @@ export async function classifyAll(
       stats.batches++;
       if (await run(batch)) continue;
       stats.failedBatches++;
-      if (batch.length > 1) for (const one of batch) await run([one]);
+      if (batch.length > 1) {
+        const mid = Math.ceil(batch.length / 2);
+        await runSplitting(batch.slice(0, mid));
+        await runSplitting(batch.slice(mid));
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, batches.length) }, worker));

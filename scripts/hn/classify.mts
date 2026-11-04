@@ -127,6 +127,8 @@ for (const { month, candidates } of work) {
   if (!candidates.length) continue;
   const out = path.join(dataDir, "verdicts", `${month}.jsonl`);
   const started = Date.now();
+  let monthSaved = 0;
+  let lastReport = 0;
   const stats = await classifyAll(candidates, classifier, topicSlugs, {
     batchSize,
     concurrency: Number(args.concurrency),
@@ -134,6 +136,15 @@ for (const { month, candidates } of work) {
       if (!v.length) return;
       await appendFile(out, v.map((x) => JSON.stringify(x)).join("\n") + "\n");
       saved += v.length;
+      monthSaved += v.length;
+      if (monthSaved - lastReport >= 200) {
+        lastReport = monthSaved;
+        console.log(`  ${month}: ${monthSaved}/${candidates.length} after ${((Date.now() - started) / 1000).toFixed(0)}s`);
+      }
+    },
+    // Failed calls show up immediately, so a stall is visible while it happens.
+    onProblem: (p) => {
+      if (p.includes("failed")) console.log(`  ${month}: ${p}`);
     },
   });
   totalIn += stats.inputTokens;

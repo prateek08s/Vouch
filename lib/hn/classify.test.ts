@@ -168,13 +168,30 @@ describe("classifyAll", () => {
     expect(fake.maxInFlight).toBe(3);
   });
 
-  it("retries a failed batch one comment at a time and saves the rest", async () => {
+  it("splits a failed batch in half until the bad comment is alone, and saves the rest", async () => {
     const fake = new FakeClassifier(new Set([3]));
     const saved: number[] = [];
-    const stats = await classifyAll(many.slice(0, 5), fake, TOPICS, { batchSize: 5, onVerdicts: (v) => void saved.push(...v.map((x) => x.commentId)) });
+    const live: string[] = [];
+    const stats = await classifyAll(many.slice(0, 5), fake, TOPICS, {
+      batchSize: 5,
+      onVerdicts: (v) => void saved.push(...v.map((x) => x.commentId)),
+      onProblem: (p) => live.push(p),
+    });
     expect(saved.sort()).toEqual([1, 2, 4, 5]);
     expect(stats.failedBatches).toBe(1);
-    expect(stats.problems.filter((p) => p.includes("failed"))).toHaveLength(2); // the batch, then comment 3 alone
+    // [1..5] fails, then [1,2,3] fails, [1,2] works, [3] fails alone, [4,5] works.
+    expect(fake.calls).toEqual([[1, 2, 3, 4, 5], [1, 2, 3], [1, 2], [3], [4, 5]]);
+    expect(stats.problems.filter((p) => p.includes("failed"))).toHaveLength(3);
+    // Problems are reported as they happen, not only at the end.
+    expect(live).toEqual(stats.problems);
+    expect(live[0]).toMatch(/^batch of 5 \(comments 1\.\.5\) failed: boom$/);
+  });
+
+  it("needs far fewer calls than one per comment when a big batch has one bad comment", async () => {
+    const fake = new FakeClassifier(new Set([17]));
+    await classifyAll(many.slice(0, 20), fake, TOPICS, { batchSize: 20, onVerdicts: () => {} });
+    // The first try, then 2 calls per halving (20 -> 10 -> 5 -> 3 -> 2 -> 1): 11, not 21.
+    expect(fake.calls.length).toBe(11);
   });
 
   it("stops at once on an authentication error instead of retrying every batch", async () => {

@@ -28,7 +28,9 @@ import {
 /** Runs the CLI with arguments and stdin, resolving to its stdout. Injectable for tests. */
 export type CliRunner = (args: string[], stdin: string) => Promise<string>;
 
-export const defaultCliRunner = (bin = "claude", timeoutMs = 300_000): CliRunner => (args, stdin) =>
+// A healthy batch of 20 takes about 30 seconds. Calls that hang do so indefinitely, so give up
+// after 2 minutes and let the batch be split and retried.
+export const defaultCliRunner = (bin = "claude", timeoutMs = 120_000): CliRunner => (args, stdin) =>
   new Promise((resolve, reject) => {
     const child = execFile(bin, args, { timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024, windowsHide: true }, (err, stdout, stderr) => {
       // The CLI exits non-zero on errors but still prints a JSON result we can explain.
