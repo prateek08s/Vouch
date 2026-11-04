@@ -15,6 +15,7 @@ async function UserNav() {
   if (!user) return <Link href="/signin">Sign in</Link>;
   return (
     <>
+      <Link href="/passport">Passport</Link>
       <Link href="/settings/rules">Rules</Link>
       <Link href="/vouch" className="vouch-cta">Vouch</Link>
       <span className="who">{user.display_name}</span>

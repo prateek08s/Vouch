@@ -13,6 +13,7 @@ import { follow, unfollow } from "@/lib/graph/follows";
 import { defaultMetadataProvider } from "@/lib/youtube/metadata";
 import { createUser, getUserByUsername, usernameFrom } from "@/lib/users";
 import { completeOnboarding, saveTopics } from "@/lib/onboarding";
+import { setPassportSettings } from "@/lib/passport";
 import { createRule, deleteRule, type RuleKind } from "@/lib/rules";
 import { RULE_ERROR_MESSAGES } from "@/lib/rules/describe";
 import {
@@ -261,4 +262,15 @@ export async function oauthSignIn(formData: FormData) {
   });
   if (error || !data.url) redirect("/signin?error=oauth");
   redirect(data.url);
+}
+
+/** Taste Passport privacy: private by default; sharing is the person's choice (plan 7, 31). */
+export async function passportSettingsAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/signin");
+  await setPassportSettings(await getDb(), user.id, {
+    isPublic: formData.get("public") === "on",
+    showSuccess: formData.get("success") === "on",
+  });
+  refresh();
 }
