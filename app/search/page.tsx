@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { search } from "@/lib/search";
+import { recordImpressions } from "@/lib/analytics";
 import { groupedTopics, loadTopics } from "@/lib/topics";
 import { formatDuration, plural } from "@/lib/format";
 
@@ -37,6 +38,11 @@ async function Results({ searchParams }: PageProps<"/search">) {
   const [res, topics] = await Promise.all([search(db, user.id, q, { circleOnly, topic }), loadTopics(db)]);
   const groups = groupedTopics(topics);
   const searched = Boolean(q.trim() || topic);
+  // Circle-backed results are the human signal worth comparing with plain matches.
+  await recordImpressions(db, user.id, "search", res.results.map((r) => ({
+    resourceId: r.resourceId,
+    explanationCode: r.circleVouchers.length ? "search_circle" : "search_match",
+  })));
 
   return (
     <>

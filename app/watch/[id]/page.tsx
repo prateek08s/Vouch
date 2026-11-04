@@ -5,6 +5,7 @@ import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { getWatchData } from "@/lib/watch";
 import { hnMentionsFor } from "@/lib/hn/import";
+import { markOpened } from "@/lib/analytics";
 import { TRUST_LABEL, formatDuration, initials, plural } from "@/lib/format";
 import { blockChannelAction, rateAction } from "@/app/actions";
 import { AddToList } from "@/app/lists/ListForms";
@@ -31,6 +32,8 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
   const db = await getDb();
   const w = await getWatchData(db, user.id, id, via);
   if (!w) notFound();
+  // Opening a recommendation is the step between "shown" and "worth it".
+  await markOpened(db, user.id, id);
   const myLists = await db.query<{ id: string; title: string; has: boolean }>(
     `select l.id, l.title, exists (select 1 from list_items li where li.list_id = l.id and li.resource_id = $2) as has
      from lists l where l.owner_id = $1 order by l.created_at desc`,

@@ -277,3 +277,9 @@ html { background: var(--paper); }
 .pair-card small { color: var(--muted); }
 .pair-option input:checked + .pair-card { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .pair-option input:focus-visible + .pair-card { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Insights */
+.insights { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.insights th, .insights td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+.insights th { color: var(--muted); font-weight: 600; }
+.insights small { color: var(--muted); }

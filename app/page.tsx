@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { circleFeed } from "@/lib/feed/circle";
+import { circleFeed, logImpressions } from "@/lib/feed/circle";
+import { recordImpressions } from "@/lib/analytics";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { greeting, plural } from "@/lib/format";
@@ -42,6 +43,11 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
   const blockedId = Array.isArray(sp.blocked) ? sp.blocked[0] : sp.blocked;
   const db = await getDb();
   const [page, upNext] = await Promise.all([circleFeed(db, user.id, { cursor }), cursor === 0 ? upNextFromLists(db, user.id) : []]);
+  // What was shown, for Worth-It rates per explanation (plan 26, H1 to H4). Reloads within 6 hours count once.
+  await Promise.all([
+    logImpressions(db, user.id, page.items),
+    recordImpressions(db, user.id, "list", upNext.map((u) => ({ resourceId: u.item.resource_id, explanationCode: "list_next" }))),
+  ]);
   const banner = blockedId ? await BlockedBanner({ userId: user.id, ruleId: blockedId }) : null;
 
   if (!page.items.length && cursor === 0) {

@@ -1,4 +1,5 @@
 import type { Db } from "@/lib/db";
+import { recordImpressions } from "@/lib/analytics";
 import { applyRules, listRules } from "@/lib/rules";
 import { loadTopics } from "@/lib/topics";
 import { loadTrust, trustFor } from "@/lib/trust";
@@ -145,12 +146,7 @@ export async function circleFeed(
   };
 }
 
-/** Logs what was shown so Worth-It rates can be compared per explanation and source. */
-export async function logImpressions(db: Db, viewerId: string, items: RankedItem[], source = "circle") {
-  if (!items.length) return;
-  await db.query(
-    `insert into recommendation_impressions (user_id, resource_id, source_type, explanation_code)
-     select $1, unnest($2::uuid[]), $3, unnest($4::text[])`,
-    [viewerId, items.map((i) => i.resourceId), source, items.map((i) => i.explanation.code)],
-  );
+/** Logs what the Circle showed, so Worth-It rates can be compared per explanation (lib/analytics). */
+export async function logImpressions(db: Db, viewerId: string, items: RankedItem[], now = new Date()) {
+  return recordImpressions(db, viewerId, "circle", items.map((i) => ({ resourceId: i.resourceId, explanationCode: i.explanation.code })), now);
 }
