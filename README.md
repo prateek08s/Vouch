@@ -40,6 +40,8 @@ node --experimental-transform-types scripts/smoke-oembed.mts   # live YouTube ch
 | Pages: Circle, Watch + Worth It, Vouch composer, People, dev sign-in | `app/` | 10, 31 |
 | Hacker News import: comments to Vouches, mentions and public lists | `lib/hn/`, `scripts/hn/` | 10, 15.1 |
 | Onboarding: 3 to 5 topics, quick "which would you rather watch?" pairs, 5 suggested people or lists | `lib/onboarding/`, `app/onboarding/` | 15.2 |
+| Impressions: what was shown (Circle, list up next, search) and opened, per explanation; `/insights` in development | `lib/analytics/`, `app/insights/` | 20, 26 |
+| Taste Passport: topic levels, curator success, privacy settings, public page and share card | `lib/passport/`, `app/passport/` | 7 |
 
 ## Import Hacker News recommendations
 
@@ -82,9 +84,8 @@ Quotes are kept only if they appear word for word in the comment.
 
 ## Not built yet
 
-Supabase Auth (the dev sign-in in `lib/server/session.ts` is the only thing to replace),
-a Supabase `Db` adapter, Taste Passport (week 7), public profiles,
-impression logging from the UI (`logImpressions` exists but nothing calls it yet).
+Taste Twins and Taste Archetypes (plan 7.3, 7.4), and a production view of `/insights`
+(it needs real admin access first). Managed sign-in and hosting are covered below.
 
 ## Managed production foundation
 
