@@ -283,3 +283,9 @@ html { background: var(--paper); }
 .insights th, .insights td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
 .insights th { color: var(--muted); font-weight: 600; }
 .insights small { color: var(--muted); }
+
+/* Primary buttons: dark text on the accent, so the main action stands out and stays readable
+   (the earlier dark pill was nearly invisible, and its hover put white text on lime). */
+.button:not(.ghost) { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.button:not(.ghost):hover { background: #e6f5b8; border-color: #e6f5b8; color: var(--paper); }
+.button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
