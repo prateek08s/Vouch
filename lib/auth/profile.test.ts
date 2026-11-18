@@ -15,3 +15,11 @@ it("never links a provider identity to an existing account by name", async () =>
   const second = await ensureProfile(db, { id: randomUUID(), user_metadata: { name: "Alex" } });
   expect(first.id).not.toBe(second.id);
 });
+it("uses the GitHub handle as the username and keeps the avatar", async () => {
+  const u = await ensureProfile(db, { id: randomUUID(), user_metadata: { user_name: "octo_cat", avatar_url: "https://avatars.githubusercontent.com/u/1" } });
+  expect(u.username).toBe("octo_cat");
+  expect(u.display_name).toBe("octo_cat");
+  expect(u.avatar_url).toBe("https://avatars.githubusercontent.com/u/1");
+  const again = await ensureProfile(db, { id: randomUUID(), user_metadata: { user_name: "octo_cat" } });
+  expect(again.username).toMatch(/^octo_cat_[0-9a-f]{4}$/);
+});

@@ -170,6 +170,61 @@ describe("circleFeed", () => {
     });
   });
 
+  describe("system curators (imports such as Hacker News)", () => {
+    async function systemCurator() {
+      const id = await curator();
+      await db.query("update users set is_system = true where id = $1", [id]);
+      return id;
+    }
+    async function mentions(resourceId: string, n: number) {
+      for (let i = 0; i < n; i++) {
+        await db.query(
+          "insert into hn_mentions (comment_id, resource_id, author, posted_at) values ($1, $2, $3, now())",
+          [Math.floor(Math.random() * 1e12) + 1, resourceId, `hn_${i}`],
+        );
+      }
+    }
+    const yearAgo = 24 * 365;
+
+    it("gives a new follower a full first page from year-old imported picks", async () => {
+      const hn = await systemCurator();
+      for (let i = 0; i < 15; i++) await vouch(hn, await fx.resource(db), ["gpu"], yearAgo + i, "worth it");
+      const page = await feed();
+      expect(page.items).toHaveLength(PAGE_SIZE);
+      expect(page.nextCursor).not.toBeNull();
+    });
+
+    it("ranks a fresh personal pick above evergreen imports", async () => {
+      const hn = await systemCurator();
+      const friend = await curator();
+      for (let i = 0; i < 3; i++) await vouch(hn, await fx.resource(db), ["gpu"], yearAgo);
+      const fresh = await fx.resource(db, { title: "Fresh from a friend" });
+      await vouch(friend, fresh, ["gpu"], 2);
+      expect((await feed()).items[0].title).toBe("Fresh from a friend");
+    });
+
+    it("orders imports by independent recommendations and explains the count", async () => {
+      const hn = await systemCurator();
+      const few = await fx.resource(db, { title: "One comment" });
+      const many = await fx.resource(db, { title: "Five comments" });
+      await vouch(hn, few, ["gpu"], yearAgo);
+      await vouch(hn, many, ["gpu"], yearAgo);
+      await mentions(few, 1);
+      await mentions(many, 5);
+      const { items } = await feed();
+      expect(items.map((i) => i.title)).toEqual(["Five comments", "One comment"]);
+      expect(items[0].explanation.whyThis).toMatch(/^5 commenters on /);
+    });
+
+    it("still excludes imported picks the viewer already rated", async () => {
+      const hn = await systemCurator();
+      const r = await fx.resource(db);
+      await vouch(hn, r, ["gpu"], yearAgo);
+      await rate({ userId: viewer, resourceId: r, worthIt: true }, { db, now: () => NOW });
+      expect((await feed()).items).toEqual([]);
+    });
+  });
+
   it("logs impressions with their explanation code", async () => {
     const c = await curator();
     await vouch(c, await fx.resource(db));

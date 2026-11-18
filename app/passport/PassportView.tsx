@@ -1,4 +1,4 @@
-import { LEVEL_LABEL, MIN_RATINGS_FOR_RATE, type Passport } from "@/lib/passport";
+import { LEVEL_LABEL, MIN_RATERS, MIN_RATINGS_FOR_RATE, type Passport } from "@/lib/passport";
 import { plural } from "@/lib/format";
 
 /** Shared by the owner's Passport and the public one. Levels, not fake-precise scores (plan 7.2). */
@@ -41,12 +41,14 @@ export function PassportView({ p }: { p: Passport }) {
               <dd className={s.worthItRate === null ? "text" : undefined}>
                 {s.worthItRate === null ? "Not enough ratings yet" : `${Math.round(s.worthItRate * 100)}%`}
               </dd>
-              {s.worthItRate === null && <small>Shown after {MIN_RATINGS_FOR_RATE} ratings ({s.rated} so far)</small>}
+              {s.worthItRate === null && <small>Shown after {MIN_RATINGS_FOR_RATE} ratings from at least {MIN_RATERS} people</small>}
             </div>
-            <div>
-              <dt>People who found something worth watching through {who}</dt>
-              <dd>{s.peopleHelped}</dd>
-            </div>
+            {s.worthItRate !== null && (
+              <div>
+                <dt>People who found something worth watching through {who}</dt>
+                <dd>{s.peopleHelped}</dd>
+              </div>
+            )}
             {s.trustedFor.length > 0 && (
               <div>
                 <dt>Most trusted for</dt>

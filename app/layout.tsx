@@ -3,9 +3,9 @@ import { Newsreader, Schibsted_Grotesk } from "next/font/google";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/server/session";
-import { initials } from "@/lib/format";
 import { signOutAction } from "./actions";
 import { NavLinks, StaticNavLinks } from "./components/NavLink";
+import { Avatar } from "./components/Avatar";
 import "./globals.css";
 
 const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -29,7 +29,7 @@ async function UserNav() {
     <div className="nav-user">
       <Link href="/vouch" className="button">Vouch for a video</Link>
       <Link href="/passport" className="who" title="Your Taste Passport">
-        <span className="avatar sm" aria-hidden="true">{initials(user.display_name)}</span>
+        <Avatar name={user.display_name} src={user.avatar_url} size="sm" />
         <span className="who-name">{user.display_name}</span>
       </Link>
       <form action={signOutAction}>
@@ -64,8 +64,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main id="main" className="shell">{children}</main>
         <footer className="site-footer">
           <div className="shell">
-            <span>Every pick on Vouch has a person behind it.</span>
-            <span>Videos play from YouTube.</span>
+            <span>Every pick on Vouch has a person behind it. Videos play from YouTube.</span>
+            <span className="footer-links">
+              <Link href="/privacy">Privacy</Link>
+              <Link href="/terms">Terms</Link>
+              <a href="https://huggingface.co/datasets/open-index/hacker-news">HN data: open-index (ODC-BY)</a>
+            </span>
           </div>
         </footer>
       </body>

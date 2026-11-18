@@ -72,6 +72,12 @@ describe("curatorSuccess", () => {
     expect(curatorSuccess([r("a", true), r("b", true), r("c", false), r("d", true), r("e", true)], NAMES).worthItRate).toBeCloseTo(0.8);
   });
 
+  it("hides every figure until enough different people have rated", () => {
+    const one = curatorSuccess([r("a", true), r("a", true), r("a", false), r("a", true), r("a", true)], NAMES);
+    expect(one.worthItRate).toBeNull();
+    expect(one.trustedFor).toEqual([]);
+  });
+
   it("counts each person helped once, and only Worth It ratings", () => {
     const s = curatorSuccess([r("a", true), r("a", true), r("b", false)], NAMES);
     expect(s.peopleHelped).toBe(1);

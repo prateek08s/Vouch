@@ -38,12 +38,20 @@ export function postgresDb(pool: Pool): Db {
   };
 }
 
-export function openPostgres(connectionString: string): Db {
-  return postgresDb(new Pool({
+/**
+ * Production pool. On serverless hosting every instance has its own pool, so keep it small and
+ * point DATABASE_URL at Supabase's transaction pooler (port 6543), which shares connections across
+ * instances. Migrations use a direct or session connection instead (scripts/migrate.mts).
+ */
+export function openPostgres(connectionString: string, env = process.env): Db {
+  const pool = new Pool({
     connectionString,
-    max: 5,
+    max: Math.max(1, Number(env.PG_POOL_MAX) || 2),
     connectionTimeoutMillis: 10_000,
-    idleTimeoutMillis: 30_000,
+    idleTimeoutMillis: 10_000,
     statement_timeout: 15_000,
-  }));
+  });
+  // An idle client can be dropped by the pooler; without a listener that error crashes the process.
+  pool.on("error", (err) => console.error("[db] idle client error", err.message));
+  return postgresDb(pool);
 }

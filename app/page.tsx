@@ -26,7 +26,7 @@ export default async function CirclePage({ searchParams }: PageProps<"/">) {
 
 async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
   const user = await getCurrentUser();
-  if (!user) return <Landing />;
+  if (!user) return <Landing deleted={(await searchParams).deleted === "1"} />;
 
   // New people pick topics and first follows before their (otherwise empty) Circle.
   if (!user.onboarded_at) redirect("/onboarding");
@@ -117,12 +117,13 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
 }
 
 /** Signed out: say what Vouch is, and show a real vouch rather than describing one. */
-async function Landing() {
+async function Landing({ deleted = false }: { deleted?: boolean }) {
   const picks = await publicPicks(await getDb());
   const specimen = picks.find((p) => p.note) ?? picks[0];
   const rest = picks.filter((p) => p !== specimen).slice(0, 6);
   return (
     <>
+      {deleted && <div className="notice" role="status"><span>Your account and everything in it was deleted.</span></div>}
       <section className="landing" aria-labelledby="landing-h">
         <div>
           <h1 id="landing-h">Videos worth your time, picked by people you trust.</h1>
@@ -151,7 +152,7 @@ async function Landing() {
             </div>
             {specimen.note && <blockquote className="note">{specimen.note}</blockquote>}
             <a className="frame" href={specimen.canonical_url} target="_blank" rel="noreferrer">
-              {specimen.thumbnail_url ? <Image src={specimen.thumbnail_url} alt="" fill sizes="(max-width: 52rem) 100vw, 32rem" priority /> : <span className="placeholder">Vouch</span>}
+              {specimen.thumbnail_url ? <Image unoptimized src={specimen.thumbnail_url} alt="" fill sizes="(max-width: 52rem) 100vw, 32rem" priority /> : <span className="placeholder">Vouch</span>}
             </a>
             <strong className="rec-title">{specimen.title}</strong>
             <figcaption className="specimen-why">

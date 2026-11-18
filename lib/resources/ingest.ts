@@ -4,6 +4,8 @@ import type { MetadataProvider, VideoMetadata } from "@/lib/youtube/metadata";
 
 /** YouTube API policy: stored API data must be refreshed (or deleted) within 30 days. */
 export const METADATA_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/** YouTube Shorts are at most 3 minutes long. */
+export const SHORT_MAX_S = 180;
 
 export type Resource = {
   id: string;
@@ -49,7 +51,8 @@ export async function ingestYouTubeUrl(input: string, deps: IngestDeps): Promise
   const now = deps.now?.() ?? new Date();
 
   let existing = await findByExternalId(deps.db, parsed.videoId);
-  if (existing && parsed.isShort && !existing.is_short) {
+  // A /shorts/ link is only a hint: a video longer than a Short can't become one.
+  if (existing && parsed.isShort && !existing.is_short && (existing.duration_s === null || existing.duration_s <= SHORT_MAX_S)) {
     const rows = await deps.db.query<Resource>(
       "update resources set is_short = true where id = $1 returning *",
       [existing.id],
@@ -90,12 +93,16 @@ async function markUnavailable(db: Db, id: string, now: Date) {
   );
 }
 
-async function upsert(
+export async function upsert(
   db: Db,
   m: VideoMetadata,
   isShort: boolean,
   now: Date,
 ): Promise<{ resource: Resource; created: boolean }> {
+  const [before] = await db.query<{ creator_external_id: string | null }>(
+    "select creator_external_id from resources where source = 'youtube' and external_id = $1",
+    [m.videoId],
+  );
   // xmax = 0 identifies a freshly inserted row versus an updated one.
   // A refresh never downgrades known fields to null (oEmbed lacks duration).
   const rows = await db.query<Resource & { inserted: boolean }>(
@@ -105,11 +112,16 @@ async function upsert(
      values ('youtube', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      on conflict (source, external_id) do update set
         title                 = excluded.title,
-        creator_external_id   = coalesce(excluded.creator_external_id, resources.creator_external_id),
+        -- A real channel ID (UC...) from the Data API is never replaced by oEmbed's channel URL.
+        creator_external_id   = case when resources.creator_external_id like 'UC%'
+                                      and coalesce(excluded.creator_external_id, '') not like 'UC%'
+                                     then resources.creator_external_id
+                                     else coalesce(excluded.creator_external_id, resources.creator_external_id) end,
         creator_name          = coalesce(excluded.creator_name, resources.creator_name),
         duration_s            = coalesce(excluded.duration_s, resources.duration_s),
         thumbnail_url         = coalesce(excluded.thumbnail_url, resources.thumbnail_url),
-        is_short              = resources.is_short or excluded.is_short,
+        is_short              = case when coalesce(excluded.duration_s, resources.duration_s) > ${SHORT_MAX_S}
+                                     then false else resources.is_short or excluded.is_short end,
         published_at          = coalesce(excluded.published_at, resources.published_at),
         metadata_status       = case when coalesce(excluded.duration_s, resources.duration_s) is null
                                      then 'partial' else 'ok' end,
@@ -130,5 +142,14 @@ async function upsert(
     ],
   );
   const { inserted, ...resource } = rows[0];
+  // The channel key changed (oEmbed URL -> channel ID): move "never show this channel" rules with it.
+  const oldKey = before?.creator_external_id;
+  if (oldKey && resource.creator_external_id && oldKey !== resource.creator_external_id) {
+    await db.query(
+      `update rules r set value = $2 where r.kind = 'channel' and r.value = $1
+         and not exists (select 1 from rules x where x.user_id = r.user_id and x.kind = 'channel' and x.value = $2)`,
+      [oldKey, resource.creator_external_id],
+    );
+  }
   return { resource, created: inserted };
 }

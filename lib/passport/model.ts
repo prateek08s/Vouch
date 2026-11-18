@@ -74,6 +74,8 @@ export type CuratorSuccess = {
 };
 
 export const MIN_RATINGS_FOR_RATE = 5;
+/** Distinct raters needed before any success figure shows, so no one person's verdict can be read off it. */
+export const MIN_RATERS = 3;
 export const MIN_RATINGS_FOR_TOPIC = 3;
 export const TRUSTED_TOPIC_RATE = 0.6;
 
@@ -88,7 +90,9 @@ export function curatorSuccess(ratings: AttributedRating[], names: ReadonlyMap<n
       perTopic.set(t, cur);
     }
   }
-  const trustedFor = [...perTopic.entries()]
+  const raters = new Set(ratings.map((r) => r.raterId)).size;
+  const enough = ratings.length >= MIN_RATINGS_FOR_RATE && raters >= MIN_RATERS;
+  const trustedFor = !enough ? [] : [...perTopic.entries()]
     .filter(([t, s]) => names.has(t) && s.n >= MIN_RATINGS_FOR_TOPIC && s.w / s.n >= TRUSTED_TOPIC_RATE)
     .sort((a, b) => b[1].w / b[1].n - a[1].w / a[1].n || b[1].n - a[1].n || names.get(a[0])!.localeCompare(names.get(b[0])!))
     .slice(0, 3)
@@ -96,7 +100,7 @@ export function curatorSuccess(ratings: AttributedRating[], names: ReadonlyMap<n
   return {
     rated: ratings.length,
     worth,
-    worthItRate: ratings.length >= MIN_RATINGS_FOR_RATE ? worth / ratings.length : null,
+    worthItRate: enough ? worth / ratings.length : null,
     peopleHelped: new Set(ratings.filter((r) => r.worthIt).map((r) => r.raterId)).size,
     trustedFor,
   };

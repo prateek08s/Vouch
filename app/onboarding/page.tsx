@@ -74,7 +74,7 @@ async function Onboarding({ searchParams }: PageProps<"/onboarding">) {
                 <label key={o.resourceId} className="pair-option">
                   <input type="radio" name={`pair-${i}`} value={o.resourceId} />
                   <span className="pair-card">
-                    {o.thumbnailUrl && <Image className="thumb" src={o.thumbnailUrl} alt="" width={320} height={180} />}
+                    {o.thumbnailUrl && <Image unoptimized className="thumb" src={o.thumbnailUrl} alt="" width={320} height={180} />}
                     <strong>{o.title}</strong>
                     <Facts items={[o.creatorName, formatDuration(o.durationS)]} />
                     <small>Vouched by {o.curatorName}</small>

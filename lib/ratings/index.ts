@@ -26,11 +26,13 @@ export async function recordOpen(
       );
       curatorId = v?.user_id ?? null;
     }
-    await tx.query(
+    const inserted = await tx.query(
       `insert into vouch_attribution (user_id, resource_id, source_vouch_id, source_curator_id)
-       values ($1, $2, $3, $4) on conflict (user_id, resource_id) do nothing`,
+       values ($1, $2, $3, $4) on conflict (user_id, resource_id) do nothing returning 1`,
       [input.userId, input.resourceId, curatorId ? input.vouchId : null, curatorId],
     );
+    // Reloads and later visits don't count as new opens.
+    if (!inserted.length) return;
     await tx.query("insert into events (user_id, name, props) values ($1, 'recommendation_opened', $2)", [
       input.userId,
       JSON.stringify({ resource_id: input.resourceId, source: input.source ?? "circle" }),

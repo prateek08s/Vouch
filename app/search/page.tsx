@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { search } from "@/lib/search";
+import { allow, LIMIT_MESSAGE } from "@/lib/limits";
 import { recordImpressions } from "@/lib/analytics";
 import { groupedTopics, loadTopics } from "@/lib/topics";
 import { formatDuration, plural } from "@/lib/format";
@@ -38,6 +39,9 @@ async function Results({ searchParams }: PageProps<"/search">) {
   const topic = one(sp.topic) || null;
 
   const db = await getDb();
+  if ((q.trim() || topic) && !(await allow(db, "search", user.id))) {
+    return <div className="empty" role="alert"><strong>Too many searches.</strong><p>{LIMIT_MESSAGE}</p></div>;
+  }
   const [res, topics] = await Promise.all([search(db, user.id, q, { circleOnly, topic }), loadTopics(db)]);
   const groups = groupedTopics(topics);
   const searched = Boolean(q.trim() || topic);
@@ -110,7 +114,7 @@ async function Results({ searchParams }: PageProps<"/search">) {
           <ol className="list-items" aria-labelledby={res.lists.length > 0 ? "videos-h" : undefined} aria-label={res.lists.length > 0 ? undefined : "Videos"}>
             {res.results.map((r) => (
               <li key={r.resourceId}>
-                {r.thumbnailUrl && <Image className="thumb list-thumb" src={r.thumbnailUrl} alt="" width={160} height={90} />}
+                {r.thumbnailUrl && <Image unoptimized className="thumb list-thumb" src={r.thumbnailUrl} alt="" width={160} height={90} />}
                 <span className="grow">
                   <Link href={`/watch/${r.resourceId}`}>{r.title}</Link>
                   <Facts items={[r.creatorName, formatDuration(r.durationS), r.topics.join(", ") || null]} />

@@ -435,3 +435,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   .rows > li > .grow { flex-basis: 100%; }
   .nav-link { padding-inline: 0.55rem; }
 }
+
+/* Settings */
+.settings-tabs { display: flex; gap: 0.25rem; margin: -0.75rem 0 2rem; border-bottom: 1px solid var(--rule); }
+.settings-tabs a { padding: 0.6rem 0.9rem; color: var(--ink-2); text-decoration: none; font-size: var(--t-sm); font-weight: 550; margin-bottom: -1px; border-bottom: 2px solid transparent; }
+.settings-tabs a:hover { color: var(--ink); border-bottom-color: var(--rule-strong); }
+.avatar-img { object-fit: cover; padding: 0; }
+.button.danger-button { background: var(--miss); border-color: var(--miss); }
+.button.danger-button:hover { background: #7f1d14; border-color: #7f1d14; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+
+/* Long-form pages (privacy, terms) */
+.prose { max-width: var(--read); }
+.prose h2 { font-size: var(--t-xl); letter-spacing: -0.015em; margin: 2.25rem 0 0.6rem; }
+.prose p, .prose li { color: var(--ink-2); line-height: 1.6; }
+.prose ul { padding-left: 1.2rem; margin: 0; display: grid; gap: 0.5rem; }
+.prose p + p { margin-top: 0.75rem; }

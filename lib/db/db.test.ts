@@ -32,7 +32,14 @@ beforeAll(async () => {
 describe("migrations", () => {
   it("records every migration once", async () => {
     const rows = await db.query<{ name: string }>("select name from schema_migrations order by name");
-    expect(rows.map((r) => r.name)).toEqual(["0001_core_schema.sql", "0002_seed_topics.sql", "0003_nest_topics.sql", "0004_list_items_added.sql", "0005_hn_import.sql", "0006_onboarding.sql", "0007_hn_mentions_per_video.sql", "0008_managed_auth.sql", "0009_taste_passport.sql"]);
+    expect(rows.map((r) => r.name)).toEqual(["0001_core_schema.sql", "0002_seed_topics.sql", "0003_nest_topics.sql", "0004_list_items_added.sql", "0005_hn_import.sql", "0006_onboarding.sql", "0007_hn_mentions_per_video.sql", "0008_managed_auth.sql", "0009_taste_passport.sql", "0010_hot_path_indexes.sql", "0011_rate_limits.sql"]);
+  });
+
+  it("keeps row-level security on for every table, including ones added after 0008", async () => {
+    const open = await db.query<{ tablename: string }>(
+      "select tablename from pg_tables where schemaname = 'public' and not rowsecurity order by tablename",
+    );
+    expect(open.map((t) => t.tablename)).toEqual([]);
   });
 
   it("is idempotent", async () => {

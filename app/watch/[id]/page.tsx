@@ -1,17 +1,27 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { getWatchData } from "@/lib/watch";
 import { hnMentionsFor } from "@/lib/hn/import";
 import { markOpened } from "@/lib/analytics";
+import { recordOpen } from "@/lib/ratings";
 import { TRUST_LABEL, formatDuration, initials, plural } from "@/lib/format";
 import { blockChannelAction, rateAction } from "@/app/actions";
 import { AddToList } from "@/app/lists/ListForms";
 import { Facts } from "@/app/components/Facts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The viewer's own lists, and whether this video is already in each. */
+async function listsForWatch(db: Awaited<ReturnType<typeof getDb>>, userId: string, resourceId: string) {
+  return db.query<{ id: string; title: string; has: boolean }>(
+    `select l.id, l.title, exists (select 1 from list_items li where li.list_id = l.id and li.resource_id = $2) as has
+     from lists l where l.owner_id = $1 order by l.created_at desc`,
+    [userId, resourceId],
+  );
+}
 
 export default function WatchPage(props: PageProps<"/watch/[id]">) {
   return (
@@ -23,7 +33,6 @@ export default function WatchPage(props: PageProps<"/watch/[id]">) {
 
 async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
   const user = await getCurrentUser();
-  if (!user) redirect("/signin");
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const sp = await searchParams;
@@ -31,15 +40,15 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
   const via = viaRaw && UUID.test(viaRaw) ? viaRaw : null;
 
   const db = await getDb();
-  const w = await getWatchData(db, user.id, id, via);
+  const w = await getWatchData(db, user?.id ?? null, id, via);
   if (!w) notFound();
-  // Opening a recommendation is the step between "shown" and "worth it".
-  await markOpened(db, user.id, id);
-  const myLists = await db.query<{ id: string; title: string; has: boolean }>(
-    `select l.id, l.title, exists (select 1 from list_items li where li.list_id = l.id and li.resource_id = $2) as has
-     from lists l where l.owner_id = $1 order by l.created_at desc`,
-    [user.id, id],
-  );
+  if (user) {
+    // Opening a recommendation is the step between "shown" and "worth it". Credit goes to the
+    // curator whose pick the person opened first (recordOpen keeps the first attribution).
+    await markOpened(db, user.id, id);
+    if (via) await recordOpen(db, { userId: user.id, resourceId: id, vouchId: via });
+  }
+  const myLists = user ? await listsForWatch(db, user.id, id) : [];
   const hn = await hnMentionsFor(db, id);
   const r = w.resource;
   const runtime = formatDuration(r.duration_s);
@@ -66,8 +75,8 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
 
           <div className="watch-tools">
             <a className="tool" href={r.canonical_url} target="_blank" rel="noreferrer">Open on YouTube</a>
-            <AddToList resourceId={r.id} lists={myLists} />
-            {r.creator_external_id && (
+            {user && <AddToList resourceId={r.id} lists={myLists} />}
+            {user && r.creator_external_id && (
               <form action={blockChannelAction} className="inline-form">
                 <input type="hidden" name="resourceId" value={r.id} />
                 <button className="link-button">Never show {r.creator_name ?? "this channel"}</button>
@@ -87,11 +96,19 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
             </p>
           )}
 
-          <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={w.via?.curatorName ?? null} />
+          {user ? (
+            <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={w.via?.curatorName ?? null} />
+          ) : (
+            <section className="worth" aria-labelledby="worth-h">
+              <h2 id="worth-h">Was this worth your time?</h2>
+              <p>Sign in to rate it, save it to a list, and get picks like this from people you trust.</p>
+              <div className="actions"><Link className="button" href="/signin">Sign in to rate</Link></div>
+            </section>
+          )}
 
           {w.notes.length > 0 && (
             <section aria-labelledby="notes-h">
-              <h2 id="notes-h" className="section-title">Why your circle vouched</h2>
+              <h2 id="notes-h" className="section-title">{user ? "Why your circle vouched" : "Why people vouched"}</h2>
               <ul className="notes">
                 {w.notes.map((n) => (
                   <li key={n.vouchId}>
@@ -109,7 +126,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
               </ul>
             </section>
           )}
-          {outside > 0 && (
+          {user && outside > 0 && (
             <p className="muted">
               {plural(outside, "more person", "more people")} outside your circle vouched for this.
             </p>
@@ -142,7 +159,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
           </ul>
         </section>
       )}
-      <p className="back"><Link href="/">Back to your Circle</Link></p>
+      <p className="back"><Link href={user ? "/" : "/discover"}>{user ? "Back to your Circle" : "Browse more picks"}</Link></p>
     </>
   );
 }

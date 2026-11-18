@@ -5,9 +5,10 @@ import { authClient } from "@/lib/auth/client";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/server/db";
+import { allow, LIMIT_MESSAGE } from "@/lib/limits";
 import { getCurrentUser, signOut } from "@/lib/server/session";
 import { ingestYouTubeUrl, INGEST_ERROR_MESSAGES } from "@/lib/resources/ingest";
-import { createVouch, VOUCH_ERROR_MESSAGES } from "@/lib/vouches";
+import { createVouch, MAX_TOPICS, NOTE_MAX, remainingVouchesToday, VOUCH_ERROR_MESSAGES } from "@/lib/vouches";
 import { rate, recordOpen } from "@/lib/ratings";
 import { follow, unfollow } from "@/lib/graph/follows";
 import { defaultMetadataProvider } from "@/lib/youtube/metadata";
@@ -72,11 +73,17 @@ export async function vouchAction(_prev: VouchState, formData: FormData): Promis
   const user = await getCurrentUser();
   if (!user) return { status: "error", message: "Sign in to vouch." };
   const db = await getDb();
+  const topics = formData.getAll("topics").filter((t): t is string => typeof t === "string");
+  // Validate and check the daily limit before any YouTube request: a refused vouch costs nothing.
+  if (!topics.length) return { status: "error", field: "topics", message: VOUCH_ERROR_MESSAGES.topics_required };
+  if (topics.length > MAX_TOPICS) return { status: "error", field: "topics", message: VOUCH_ERROR_MESSAGES.too_many_topics };
+  if (str(formData, "note").trim().length > NOTE_MAX) return { status: "error", field: "note", message: VOUCH_ERROR_MESSAGES.note_too_long };
+  if ((await remainingVouchesToday(db, user.id)) <= 0) return { status: "error", message: VOUCH_ERROR_MESSAGES.daily_limit_reached };
+  if (!(await allow(db, "ingest", user.id))) return { status: "error", message: LIMIT_MESSAGE };
 
   const ingested = await ingestYouTubeUrl(str(formData, "url"), { db, metadata: defaultMetadataProvider() });
   if (!ingested.ok) return { status: "error", field: "url", message: INGEST_ERROR_MESSAGES[ingested.error] };
 
-  const topics = formData.getAll("topics").filter((t): t is string => typeof t === "string");
   const res = await createVouch(
     {
       userId: user.id,
@@ -104,8 +111,10 @@ export async function rateAction(formData: FormData) {
   if (!UUID.test(resourceId) || (verdict !== "worth" && verdict !== "not")) return;
 
   const db = await getDb();
-  // Attribution first, so the curator who brought the viewer here gets the credit.
-  await recordOpen(db, { userId: user.id, resourceId, vouchId: UUID.test(via) ? via : null });
+  if (!(await allow(db, "write", user.id))) return;
+  // Attribution is normally recorded when the video is opened; this covers a rating posted
+  // before that (an older page). The first attribution always wins.
+  if (UUID.test(via)) await recordOpen(db, { userId: user.id, resourceId, vouchId: via });
   await rate({ userId: user.id, resourceId, worthIt: verdict === "worth" }, { db });
   refresh();
 }
@@ -116,6 +125,7 @@ export async function followAction(formData: FormData) {
   const target = str(formData, "userId");
   if (!UUID.test(target)) return;
   const db = await getDb();
+  if (!(await allow(db, "write", user.id))) return;
   if (str(formData, "op") === "unfollow") await unfollow(db, user.id, target);
   else await follow(db, user.id, target);
   refresh();
@@ -130,7 +140,9 @@ export async function addRuleAction(_prev: RuleState, formData: FormData): Promi
   if (!user) return { status: "error", message: "Sign in to set rules." };
   const kind = str(formData, "kind") as RuleKind;
   if (!RULE_KINDS.includes(kind)) return { status: "error", message: RULE_ERROR_MESSAGES.invalid_value };
-  const r = await createRule(await getDb(), user.id, kind, str(formData, "value"));
+  const db = await getDb();
+  if (!(await allow(db, "write", user.id))) return { status: "error", message: LIMIT_MESSAGE };
+  const r = await createRule(db, user.id, kind, str(formData, "value"));
   if (!r.ok) return { status: "error", message: RULE_ERROR_MESSAGES[r.error] };
   refresh();
   return { status: "ok", at: Date.now() };
@@ -185,6 +197,7 @@ export async function addToListAction(_prev: AddToListState, formData: FormData)
   const resourceId = str(formData, "resourceId");
   if (!UUID.test(listId) || !UUID.test(resourceId)) return { status: "error", message: "Choose a list." };
   const db = await getDb();
+  if (!(await allow(db, "write", user.id))) return { status: "error", message: LIMIT_MESSAGE };
   const r = await addToList(db, user.id, listId, resourceId, str(formData, "note"));
   if (!r.ok) return { status: "error", message: LIST_ERROR_MESSAGES[r.error] };
   const [l] = await db.query<{ title: string }>("select title from lists where id = $1", [listId]);
@@ -198,6 +211,7 @@ export async function listItemAction(formData: FormData) {
   const resourceId = str(formData, "resourceId");
   if (!UUID.test(listId) || !UUID.test(resourceId)) return;
   const db = await getDb();
+  if (!(await allow(db, "write", user.id))) return;
   const op = str(formData, "op");
   if (op === "remove") await removeFromList(db, user.id, listId, resourceId);
   else if (op === "move") await moveItem(db, user.id, listId, resourceId, Number(str(formData, "to")));
@@ -210,6 +224,7 @@ export async function followListAction(formData: FormData) {
   const listId = str(formData, "listId");
   if (!UUID.test(listId)) return;
   const db = await getDb();
+  if (!(await allow(db, "write", user.id))) return;
   if (str(formData, "op") === "unfollow") await unfollowList(db, user.id, listId);
   else await followList(db, user.id, listId);
   refresh();

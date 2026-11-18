@@ -51,8 +51,8 @@ describe("expandTopics", () => {
 });
 
 describe("makePairs", () => {
-  const opt = (resourceId: string, curatorId: string): ChoiceOption => ({
-    resourceId, title: resourceId, thumbnailUrl: null, creatorName: null, durationS: null, curatorId, curatorName: curatorId, note: null,
+  const opt = (resourceId: string, curatorId: string, creatorName: string | null = null): ChoiceOption => ({
+    resourceId, title: resourceId, thumbnailUrl: null, creatorName, durationS: null, curatorId, curatorName: curatorId, note: null,
   });
 
   it("pairs videos from different curators and uses each video once", () => {
@@ -63,6 +63,11 @@ describe("makePairs", () => {
   it("skips videos that have no partner from another curator", () => {
     expect(makePairs([opt("a1", "a"), opt("a2", "a"), opt("a3", "a")])).toEqual([]);
     expect(makePairs([opt("a1", "a"), opt("a2", "a"), opt("b1", "b")]).length).toBe(1);
+  });
+
+  it("pairs different channels when there is only one curator", () => {
+    const pairs = makePairs([opt("h1", "hn", "3Blue1Brown"), opt("h2", "hn", "3Blue1Brown"), opt("h3", "hn", "Veritasium")]);
+    expect(pairs.map(([x, y]) => [x.resourceId, y.resourceId])).toEqual([["h1", "h3"]]);
   });
 
   it("stops at the maximum", () => {

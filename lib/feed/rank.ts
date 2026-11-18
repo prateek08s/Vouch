@@ -14,6 +14,8 @@
 import { trustLevel, type TrustLevel, type TrustStats } from "@/lib/trust/model";
 
 export const FRESHNESS_HALF_LIFE_H = 72;
+/** Freshness of an evergreen (system curator) pick: about a week-old personal vouch. */
+export const EVERGREEN_FRESHNESS = 0.2;
 export const OWN_CONTENT_FACTOR = 0.5;
 export const PAGE_SIZE = 10;
 /** Finite by design (plan 3.5): Circle never pages past this. */
@@ -28,6 +30,10 @@ export type CircleVouch = {
   isOwnContent: boolean;
   createdAt: Date;
   topicIds: number[];
+  /** A system curator's pick (an import such as Hacker News): constant freshness, not dated. */
+  evergreen?: boolean;
+  /** Independent recommendations behind an imported pick (Hacker News comments). */
+  mentionCount?: number;
   /** trust(viewer, curator) resolved for this vouch's topics. */
   trust: TrustStats & { topicId: number | null };
 };
@@ -71,11 +77,21 @@ function vouchWeight(v: CircleVouch) {
   return v.trust.weight * (v.isOwnContent ? OWN_CONTENT_FACTOR : 1);
 }
 
+/** Freshest signal among the vouches: a dated personal vouch, or the evergreen constant. */
+export function candidateFreshness(c: FeedCandidate, now: Date): number {
+  return Math.max(...c.vouches.map((v) => (v.evergreen ? EVERGREEN_FRESHNESS : freshness(v.createdAt, now))));
+}
+
+/** More independent recommendations behind an imported pick lift it a little (log scale). */
+export function endorsementBoost(c: FeedCandidate): number {
+  const n = Math.max(0, ...c.vouches.map((v) => (v.evergreen ? v.mentionCount ?? 0 : 0)));
+  return 1 + 0.15 * Math.log1p(n);
+}
+
 export function scoreCandidate(c: FeedCandidate, now: Date): number {
   if (!c.vouches.length) return 0;
   const trust = c.vouches.reduce((s, v) => s + vouchWeight(v), 0);
-  const latest = c.vouches.reduce((m, v) => (v.createdAt > m ? v.createdAt : m), c.vouches[0].createdAt);
-  return trust * quality(c.worthCount, c.ratingCount) * freshness(latest, now);
+  return trust * quality(c.worthCount, c.ratingCount) * candidateFreshness(c, now) * endorsementBoost(c);
 }
 
 function possessive(name: string) {
@@ -106,6 +122,10 @@ export function explain(c: FeedCandidate, topicNames: Map<number, string>): { ex
   } else if (t.sampleCount >= 3) {
     code = "circle_base_trust";
     whyThis = `You rated ${t.worthCount} of ${possessive(lead.curatorName)} ${t.sampleCount} picks Worth It.`;
+  } else if (lead.evergreen && (lead.mentionCount ?? 0) > 0) {
+    code = "circle_follow";
+    const n = lead.mentionCount ?? 0;
+    whyThis = `${n === 1 ? "A commenter" : `${n} commenters`} on ${lead.curatorName} recommended this. Rating it teaches Vouch how much these picks work for you.`;
   } else {
     code = "circle_follow";
     whyThis = `You follow ${lead.curatorName}. Rating this teaches Vouch how much you trust their picks.`;

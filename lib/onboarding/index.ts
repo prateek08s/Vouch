@@ -68,14 +68,17 @@ export type ChoiceOption = {
 
 /**
  * Pairs two videos from different curators, so each choice says something about whose taste
- * fits. Options arrive best first; each video is used once. Pure.
+ * fits; with a single curator, from different channels. Options arrive best first; each video is used once. Pure.
  */
 export function makePairs(options: ChoiceOption[], max = MAX_PAIRS): [ChoiceOption, ChoiceOption][] {
   const pool = [...options];
   const pairs: [ChoiceOption, ChoiceOption][] = [];
   while (pool.length >= 2 && pairs.length < max) {
     const a = pool.shift()!;
-    const j = pool.findIndex((b) => b.curatorId !== a.curatorId && b.resourceId !== a.resourceId);
+    let j = pool.findIndex((b) => b.curatorId !== a.curatorId && b.resourceId !== a.resourceId);
+    // One curator only (an import such as Hacker News): contrast channels instead, so the
+    // choice still says something about taste.
+    if (j === -1) j = pool.findIndex((b) => b.resourceId !== a.resourceId && b.creatorName !== a.creatorName);
     if (j === -1) continue;
     pairs.push([a, pool.splice(j, 1)[0]]);
   }

@@ -69,7 +69,7 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
           {items.map((it, idx) => (
             <li key={it.resource_id} className={it.rated !== null ? "watched" : undefined}>
               <span className="list-num" aria-hidden="true">{idx + 1}</span>
-              {it.thumbnail_url && <Image className="thumb list-thumb" src={it.thumbnail_url} alt="" width={160} height={90} />}
+              {it.thumbnail_url && <Image unoptimized className="thumb list-thumb" src={it.thumbnail_url} alt="" width={160} height={90} />}
               <span className="grow">
                 {it.metadata_status === "unavailable" ? (
                   <span>{it.title} <span className="pill quiet">No longer available</span></span>

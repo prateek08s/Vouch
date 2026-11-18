@@ -33,7 +33,7 @@ export function PublicPicks({ picks, showCurator = true }: { picks: PublicPick[]
             </h2>
           </div>
           <a className="frame rec-media" href={pick.canonical_url} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
-            {pick.thumbnail_url ? <Image src={pick.thumbnail_url} alt="" fill sizes="(max-width: 46rem) 100vw, 22rem" /> : <span className="placeholder">Vouch</span>}
+            {pick.thumbnail_url ? <Image unoptimized src={pick.thumbnail_url} alt="" fill sizes="(max-width: 46rem) 100vw, 22rem" /> : <span className="placeholder">Vouch</span>}
           </a>
         </article>
       ))}

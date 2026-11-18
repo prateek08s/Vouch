@@ -49,7 +49,7 @@ export function RecommendationCard({ item, priority = false }: { item: RankedIte
 
       <Link className="frame rec-media" href={href} tabIndex={-1} aria-hidden="true">
         {item.thumbnailUrl ? (
-          <Image src={item.thumbnailUrl} alt="" fill sizes="(max-width: 46rem) 100vw, 22rem" priority={priority} />
+          <Image unoptimized src={item.thumbnailUrl} alt="" fill sizes="(max-width: 46rem) 100vw, 22rem" priority={priority} />
         ) : (
           <span className="placeholder">Vouch</span>
         )}

@@ -5,8 +5,14 @@ import { loadTopics } from "@/lib/topics";
 import { loadTrust, trustFor } from "@/lib/trust";
 import { PAGE_SIZE, rankCircle, type FeedCandidate, type RankedItem } from "./rank";
 
-/** How far back Circle looks for vouches. Freshness decays well before this. */
+/** How far back Circle looks for people's vouches. Freshness decays well before this. */
 export const CANDIDATE_WINDOW_DAYS = 60;
+/**
+ * System curators (imported sources such as Hacker News) are evergreen: their picks are dated to
+ * the original comment, often a year back, so the window would hide all of them. Instead the best
+ * of them by number of independent recommendations are always candidates, ranked below fresh picks.
+ */
+export const SYSTEM_CANDIDATES = 200;
 
 export type CirclePage = {
   items: RankedItem[];
@@ -34,6 +40,8 @@ type Row = {
   is_own_content: boolean;
   created_at: Date;
   topic_ids: number[];
+  is_system: boolean;
+  mention_count: number;
 };
 
 /**
@@ -49,22 +57,43 @@ export async function circleFeed(
   const now = opts.now ?? new Date();
   const since = new Date(now.getTime() - CANDIDATE_WINDOW_DAYS * 86_400_000);
 
+  // Candidates: people's vouches inside the window, plus the best-recommended picks of followed
+  // system curators at any age. Rated and own-vouched videos are excluded before the cap.
   const rows = await db.query<Row>(
-    `select r.id as resource_id, r.title, r.duration_s, r.thumbnail_url, r.creator_external_id,
+    `with eligible as (
+       select v.id, v.resource_id, u.is_system
+       from follows f
+       join vouches v   on v.user_id = f.followee_id and v.created_at <= $3
+       join users u     on u.id = v.user_id
+       join resources r on r.id = v.resource_id and r.metadata_status <> 'unavailable'
+       where f.follower_id = $1
+         and (u.is_system or v.created_at > $2)
+         and not exists (select 1 from ratings x where x.user_id = $1 and x.resource_id = v.resource_id)
+         and not exists (select 1 from vouches mine where mine.user_id = $1 and mine.resource_id = v.resource_id)
+     ),
+     picked as (
+       select e.id, 0 as mentions from eligible e where not e.is_system
+       union all
+       (select e.id, m.n as mentions
+        from eligible e
+        cross join lateral (select count(distinct hm.author)::int as n from hn_mentions hm where hm.resource_id = e.resource_id) m
+        where e.is_system
+        order by m.n desc, e.id
+        limit $4)
+     )
+     select r.id as resource_id, r.title, r.duration_s, r.thumbnail_url, r.creator_external_id,
             r.creator_name, r.is_short,
             v.id as vouch_id, v.user_id as curator_id, u.display_name as curator_name,
             u.username as curator_username, v.note, v.is_own_content, v.created_at,
+            u.is_system, p.mentions as mention_count,
             coalesce(array_agg(vt.topic_id) filter (where vt.topic_id is not null), '{}') as topic_ids
-     from follows f
-     join vouches v   on v.user_id = f.followee_id and v.created_at > $2 and v.created_at <= $3
+     from picked p
+     join vouches v   on v.id = p.id
      join users u     on u.id = v.user_id
-     join resources r on r.id = v.resource_id and r.metadata_status <> 'unavailable'
+     join resources r on r.id = v.resource_id
      left join vouch_topics vt on vt.vouch_id = v.id
-     where f.follower_id = $1
-       and not exists (select 1 from ratings x where x.user_id = $1 and x.resource_id = r.id)
-       and not exists (select 1 from vouches mine where mine.user_id = $1 and mine.resource_id = r.id)
-     group by r.id, v.id, u.id`,
-    [viewerId, since, now],
+     group by r.id, v.id, u.id, p.mentions`,
+    [viewerId, since, now, SYSTEM_CANDIDATES],
   );
   if (!rows.length) return { items: [], nextCursor: null, hiddenByRules: 0, curatorCount: 0 };
 
@@ -112,6 +141,8 @@ export async function circleFeed(
       note: r.note,
       isOwnContent: r.is_own_content,
       createdAt: r.created_at,
+      evergreen: r.is_system,
+      mentionCount: r.mention_count,
       topicIds: r.topic_ids,
       trust: trustFor(trust.get(r.curator_id), r.topic_ids),
     });

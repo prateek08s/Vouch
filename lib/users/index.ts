@@ -65,3 +65,40 @@ export async function getUserByUsername(db: Db, username: string): Promise<User 
   const rows = await db.query<User>("select * from users where username = $1", [normalizeUsername(username)]);
   return rows[0] ?? null;
 }
+
+export type ProfileError = CreateUserError;
+
+export const PROFILE_ERROR_MESSAGES: Record<ProfileError, string> = {
+  invalid_username: "Usernames are 3 to 24 lowercase letters, numbers or underscores.",
+  username_taken: "That username is taken. Try another.",
+  invalid_display_name: "Your name needs 1 to 60 characters.",
+  bio_too_long: "Keep your bio under 280 characters.",
+};
+
+/** Edits the person's own public profile. System accounts are not editable this way. */
+export async function updateProfile(
+  db: Db,
+  userId: string,
+  input: { username: string; displayName: string; bio: string },
+): Promise<{ ok: true; user: User } | { ok: false; error: ProfileError }> {
+  const username = normalizeUsername(input.username);
+  const displayName = input.displayName.trim().replace(/\s+/g, " ");
+  const bio = input.bio.trim() || null;
+  if (!USERNAME_PATTERN.test(username)) return { ok: false, error: "invalid_username" };
+  if (displayName.length < 1 || displayName.length > 60) return { ok: false, error: "invalid_display_name" };
+  if (bio && bio.length > 280) return { ok: false, error: "bio_too_long" };
+  const [taken] = await db.query("select 1 from users where username = $1 and id <> $2", [username, userId]);
+  if (taken) return { ok: false, error: "username_taken" };
+  try {
+    const [user] = await db.query<User>(
+      "update users set username = $2, display_name = $3, bio = $4 where id = $1 and not is_system returning *",
+      [userId, username, displayName, bio],
+    );
+    if (!user) return { ok: false, error: "invalid_username" };
+    return { ok: true, user };
+  } catch (e) {
+    // A concurrent rename can still win the unique index.
+    if ((e as { code?: string }).code === "23505") return { ok: false, error: "username_taken" };
+    throw e;
+  }
+}

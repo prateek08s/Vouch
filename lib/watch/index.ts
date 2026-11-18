@@ -25,12 +25,17 @@ export type WatchData = {
   publicVouchCount: number;
 };
 
+/** Stands in for "nobody" in viewer-scoped queries: no follows, ratings or attribution match it. */
+const NO_VIEWER = "00000000-0000-0000-0000-000000000000";
+
+/** Watch page data. A null viewer (signed out) sees the public vouches, newest notes first. */
 export async function getWatchData(
   db: Db,
-  viewerId: string,
+  viewer: string | null,
   resourceId: string,
   viaVouchId: string | null,
 ): Promise<WatchData | null> {
+  const viewerId = viewer ?? NO_VIEWER;
   const [resource] = await db.query<Resource>("select * from resources where id = $1", [resourceId]);
   if (!resource) return null;
 
@@ -73,7 +78,7 @@ export async function getWatchData(
   const via = all.find((n) => n.vouchId === viaId) ?? null;
 
   const notes = all
-    .filter((n) => n.inCircle || n.vouchId === via?.vouchId)
+    .filter((n) => (viewer ? n.inCircle : n.note !== null) || n.vouchId === via?.vouchId)
     .sort((a, b) => Number(b.vouchId === via?.vouchId) - Number(a.vouchId === via?.vouchId) || b.createdAt.getTime() - a.createdAt.getTime());
 
   const [rating] = await db.query<{ worth_it: boolean }>(
