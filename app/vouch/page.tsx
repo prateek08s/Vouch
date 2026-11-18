@@ -4,17 +4,19 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { groupedTopics, loadTopics } from "@/lib/topics";
-import { remainingVouchesToday } from "@/lib/vouches";
+import { DAILY_LIMIT, remainingVouchesToday } from "@/lib/vouches";
 import { VouchComposer } from "./VouchComposer";
 
-export const metadata: Metadata = { title: "Vouch" };
+export const metadata: Metadata = { title: "Vouch for a video" };
 
 export default function VouchPage() {
   return (
     <>
-      <h1>Vouch</h1>
-      <p className="intro">Found something genuinely worth another person’s time? Put your name on it.</p>
-      <Suspense fallback={<p>Loading…</p>}>
+      <header className="page-head">
+        <h1>Vouch for a video</h1>
+        <p>Found something genuinely worth another person’s time? Put your name on it.</p>
+      </header>
+      <Suspense fallback={<p className="muted">Loading…</p>}>
         <Composer />
       </Suspense>
     </>
@@ -32,5 +34,5 @@ async function Composer() {
     name: g.root.name,
     topics: g.topics.map((t) => ({ slug: t.slug, name: t.name })),
   }));
-  return <VouchComposer groups={groups} remaining={remaining} />;
+  return <VouchComposer groups={groups} remaining={remaining} limit={DAILY_LIMIT[user.trust_tier] ?? remaining} />;
 }

@@ -19,15 +19,18 @@ export function CreateListForm() {
     <form className="form" onSubmit={submitWithoutReset(action)} aria-label="Create a list">
       <div className="field">
         <label htmlFor="list-title">Title</label>
-        <input id="list-title" name="title" type="text" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Learn Rust from Zero" />
+        <input id="list-title" name="title" type="text" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Learn Rust from zero" />
       </div>
       <div className="field">
-        <label htmlFor="list-desc">What is it for? <span className="trust-tag">(optional)</span></label>
+        <label htmlFor="list-desc">What is it for? <span className="optional">Optional</span></label>
         <textarea id="list-desc" name="description" maxLength={500} placeholder="Six videos, in order, for someone who has never written Rust." />
       </div>
       <label className="check">
         <input type="checkbox" name="private" />
-        <span>Keep it private <span className="trust-tag">Only you can see private lists.</span></span>
+        <span>
+          Keep it private
+          <small>Only you can see private lists.</small>
+        </span>
       </label>
       {state.status === "error" && <p className="error" role="alert" id="list-error">{state.message}</p>}
       <div className="actions">
@@ -43,19 +46,19 @@ export function AddToList({ resourceId, lists }: { resourceId: string; lists: { 
   const available = lists.filter((l) => !l.has && !(state.status === "ok" && state.listId === l.id));
 
   if (!lists.length) {
-    return <p className="trust-tag"><Link href="/lists">Make a list</Link> to collect videos like this one.</p>;
+    return <span className="tool"><Link href="/lists">Make a list</Link> to save videos like this one</span>;
   }
   return (
     <form className="rule-form" aria-label="Add to a list" onSubmit={submitWithoutReset(action)}>
       <input type="hidden" name="resourceId" value={resourceId} />
-      <label htmlFor="add-list" className="trust-tag">Add to list</label>
-      <select id="add-list" name="listId" value={listId} onChange={(e) => setListId(e.target.value)} disabled={!available.length}>
-        <option value="">{available.length ? "Choose a list…" : "Already in all your lists"}</option>
+      <label htmlFor="add-list" className="skip-label">Add to list</label>
+      <select id="add-list" name="listId" value={listId} onChange={(e) => setListId(e.target.value)} disabled={!available.length} style={{ minHeight: "2rem", padding: "0.25rem 0.5rem", flex: "0 1 14rem" }}>
+        <option value="">{available.length ? "Add to a list…" : "In all your lists"}</option>
         {available.map((l) => <option key={l.id} value={l.id}>{l.title}</option>)}
       </select>
-      <button className="button ghost" disabled={pending || !listId}>{pending ? "Adding…" : "Add"}</button>
+      <button className="button ghost small" disabled={pending || !listId}>{pending ? "Adding…" : "Add"}</button>
       {state.status === "ok" && (
-        <p className="success" role="status" style={{ flexBasis: "100%" }}>
+        <p className="success" role="status">
           Added to <Link href={`/lists/${state.listId}`}>{state.listTitle}</Link>.
         </p>
       )}

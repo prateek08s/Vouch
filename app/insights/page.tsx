@@ -15,12 +15,14 @@ export const metadata: Metadata = { title: "Insights" };
 export default function InsightsPage() {
   return (
     <>
-      <h1>Insights</h1>
-      <p className="intro">
-        How recommendations perform, by where they were shown and how they were explained. Totals across everyone; no one&apos;s
-        individual ratings appear here.
-      </p>
-      <Suspense fallback={<p>Loading…</p>}>
+      <header className="page-head">
+        <h1>Insights</h1>
+        <p>
+          How recommendations perform, by where they were shown and how they were explained. Totals across everyone; no
+          one&apos;s individual ratings appear here.
+        </p>
+      </header>
+      <Suspense fallback={<p className="muted">Loading…</p>}>
         <Report />
       </Suspense>
     </>
@@ -43,31 +45,40 @@ async function Report() {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
   const rows = await impressionReport(await getDb());
-  if (!rows.length) return <p className="empty">Nothing has been shown yet. Open the Circle, a list or search to start collecting.</p>;
+  if (!rows.length) {
+    return (
+      <div className="empty">
+        <strong>Nothing has been shown yet.</strong>
+        <p>Open the Circle, a list or search to start collecting.</p>
+      </div>
+    );
+  }
   return (
-    <table className="insights">
-      <thead>
-        <tr>
-          <th scope="col">Shown in</th>
-          <th scope="col">Explanation</th>
-          <th scope="col">Shown</th>
-          <th scope="col">Opened</th>
-          <th scope="col">Rated</th>
-          <th scope="col">Worth it</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={`${r.source}-${r.explanation}`}>
-            <td>{SOURCE[r.source] ?? r.source}</td>
-            <td>{EXPLANATION[r.explanation] ?? r.explanation}</td>
-            <td>{r.shown}</td>
-            <td>{r.opened} <small>({pct(r.opened, r.shown)})</small></td>
-            <td>{r.rated}</td>
-            <td>{r.worthIt} <small>({pct(r.worthIt, r.rated)} of rated)</small></td>
+    <div className="table-wrap">
+      <table className="insights">
+        <thead>
+          <tr>
+            <th scope="col">Shown in</th>
+            <th scope="col">Explanation</th>
+            <th scope="col">Shown</th>
+            <th scope="col">Opened</th>
+            <th scope="col">Rated</th>
+            <th scope="col">Worth it</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={`${r.source}-${r.explanation}`}>
+              <td>{SOURCE[r.source] ?? r.source}</td>
+              <td>{EXPLANATION[r.explanation] ?? r.explanation}</td>
+              <td className="num">{r.shown}</td>
+              <td className="num">{r.opened} <small>({pct(r.opened, r.shown)})</small></td>
+              <td className="num">{r.rated}</td>
+              <td className="num">{r.worthIt} <small>({pct(r.worthIt, r.rated)} of rated)</small></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

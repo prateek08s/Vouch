@@ -3,14 +3,18 @@
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --year 2025
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --months 2025-01 --dry-run
 //
-// Reads .data/hn/verdicts/*.jsonl and writes to the same local database as `npm run dev`
-// (VOUCH_DATA_DIR, default .data/pglite). Stop the dev server first: PGlite allows one process.
+// Reads .data/hn/verdicts/*.jsonl and writes to the same database as `npm run dev`:
+// Postgres when DATABASE_URL is set (run scripts/migrate.mts against it first), otherwise the
+// local PGlite directory (VOUCH_DATA_DIR, default .data/pglite). For PGlite, stop the dev
+// server first: it allows one process.
 // YOUTUBE_API_KEY (in .env.local) gives video lengths; without it, oEmbed is used.
 import { existsSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { openPglite } from "@/lib/db";
+import { Pool } from "pg";
+import { openPglite, type Db } from "@/lib/db";
+import { postgresDb } from "@/lib/db/postgres";
 import { aggregate, planLists, type TopicInfo } from "@/lib/hn/aggregate";
 import type { CommentVerdict } from "@/lib/hn/classify";
 import { importHn } from "@/lib/hn/import";
@@ -53,8 +57,17 @@ console.log(
 );
 
 const dir = process.env.VOUCH_DATA_DIR ?? path.join(".data", "pglite");
-await mkdir(path.dirname(dir), { recursive: true });
-const db = args["dry-run"] ? await openPglite() : await openPglite(dir);
+const usePostgres = Boolean(process.env.DATABASE_URL) && !args["dry-run"];
+async function openTarget(): Promise<Db & { close(): Promise<void> }> {
+  if (usePostgres) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: Number(args.concurrency) + 1 });
+    return Object.assign(postgresDb(pool), { close: () => pool.end() });
+  }
+  if (args["dry-run"]) return openPglite();
+  await mkdir(path.dirname(dir), { recursive: true });
+  return openPglite(dir);
+}
+const db = await openTarget();
 const topics = await db.query<TopicInfo>(`select t.slug, t.name, p.slug as "parentSlug" from topics t left join topics p on p.id = t.parent_topic_id`);
 
 if (args["dry-run"]) {
@@ -67,7 +80,7 @@ if (args["dry-run"]) {
   process.exit(0);
 }
 
-console.log(`Importing into ${dir} (${process.env.YOUTUBE_API_KEY ? "YouTube Data API" : "oEmbed, no video lengths"})...`);
+console.log(`Importing into ${usePostgres ? "Postgres (DATABASE_URL)" : dir} (${process.env.YOUTUBE_API_KEY ? "YouTube Data API" : "oEmbed, no video lengths"})...`);
 let lastPct = -1;
 const stats = await importHn(aggs, topics, { period }, {
   db,
@@ -83,6 +96,6 @@ const stats = await importHn(aggs, topics, { period }, {
 console.log(`Imported ${stats.imported} new and updated ${stats.updated} videos, ${stats.mentions} comments recorded.`);
 console.log(`Skipped: ${JSON.stringify(stats.skipped)}`);
 for (const l of stats.lists) console.log(`  list "${l.title}": ${l.items} videos`);
-// Flush to disk and let Node exit: an open PGlite keeps the process alive indefinitely.
+// Flush and let Node exit: an open PGlite or pool keeps the process alive indefinitely.
 await db.close();
 process.exit(0);

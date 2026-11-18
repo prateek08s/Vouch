@@ -14,16 +14,25 @@ export const metadata: Metadata = { title: "Rules" };
 export default function RulesPage() {
   return (
     <>
-      <h1>Rules</h1>
-      <p className="intro">
-        Your rules are absolute. They run before ranking, in every feed, and popularity never overrides them.
-      </p>
-      <Suspense fallback={<p>Loading your rules…</p>}>
+      <header className="page-head">
+        <h1>Rules</h1>
+        <p>Your rules are absolute. They run before ranking in your Circle, your lists and search, and popularity never overrides them.</p>
+      </header>
+      <Suspense fallback={<p className="muted">Loading your rules…</p>}>
         <Rules />
       </Suspense>
     </>
   );
 }
+
+const KIND_ICON: Record<string, React.ReactNode> = {
+  channel: <path d="M3 5.5h14v9H3zM8.5 8v4l3.5-2z" />,
+  topic: <path d="M4 4h5l7 7-5 5-7-7zM7 7h.01" />,
+  keyword: <path d="M5 5h10M10 5v10M7 15h6" />,
+  min_duration: <path d="M10 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM10 7v3l2 1.5" />,
+  max_duration: <path d="M10 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM10 7v3l2 1.5" />,
+  no_shorts: <path d="M7 3.5h6v13H7zM4 4l12 12" />,
+};
 
 async function Rules() {
   const user = await getCurrentUser();
@@ -50,32 +59,37 @@ async function Rules() {
     group: g.root.name,
     options: g.topics
       .filter((t) => !blocked.has(t.slug))
-      .map((t) => ({ slug: t.slug, name: t.depth === 0 ? `${t.name} (all)` : `${"  ".repeat(t.depth - 1)}${t.name}` })),
+      .map((t) => ({ slug: t.slug, name: t.depth === 0 ? `${t.name} (all)` : `${"  ".repeat(t.depth - 1)}${t.name}` })),
   }));
 
   return (
-    <>
+    <div className="split">
       <section aria-labelledby="active-h">
-        <h2 id="active-h" className="eyebrow">Active rules</h2>
+        <h2 id="active-h" className="section-title">Active rules</h2>
         {active.length === 0 ? (
-          <p className="empty">No rules yet. Everything your circle vouches for can appear.</p>
+          <p className="section-note">No rules yet. Everything your circle vouches for can appear.</p>
         ) : (
-          <ul className="people">
+          <ul className="rows">
             {active.map((r) => (
               <li key={r.id}>
+                <span className="rule-kind" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    {KIND_ICON[r.kind] ?? KIND_ICON.keyword}
+                  </svg>
+                </span>
                 <span className="grow">{describeRule(r, lookups)}</span>
                 <form action={deleteRuleAction}>
                   <input type="hidden" name="ruleId" value={r.id} />
-                  <button className="button ghost" aria-label={`Remove rule: ${describeRule(r, lookups)}`}>Remove</button>
+                  <button className="button ghost small" aria-label={`Remove rule: ${describeRule(r, lookups)}`}>Remove</button>
                 </form>
               </li>
             ))}
           </ul>
         )}
-        <p className="trust-tag">To block a channel, open one of its videos and choose “Never show this channel”.</p>
+        <p className="hint" style={{ marginTop: "1rem" }}>To block a channel, open one of its videos and choose “Never show” under the player.</p>
       </section>
 
       <RuleControls topicOptions={topicOptions} hasNoShorts={has("no_shorts")} />
-    </>
+    </div>
   );
 }

@@ -7,12 +7,13 @@ import { getCurrentUser } from "@/lib/server/session";
 import { getList } from "@/lib/lists";
 import { formatDuration, plural } from "@/lib/format";
 import { deleteListAction, followListAction, listItemAction } from "@/app/actions";
+import { Facts } from "@/app/components/Facts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function ListPage(props: PageProps<"/lists/[id]">) {
   return (
-    <Suspense fallback={<p className="intro">Loading list…</p>}>
+    <Suspense fallback={<p className="muted">Loading list…</p>}>
       <ListView {...props} />
     </Suspense>
   );
@@ -27,32 +28,42 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
   if (!v) notFound();
   const { list, items } = v;
   const done = items.filter((i) => i.rated !== null).length;
+  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
 
   return (
     <>
-      <p className="eyebrow">List by {v.isOwner ? "you" : v.owner.display_name}{!list.is_public && " · Private"}</p>
-      <h1 style={{ fontSize: "clamp(2.2rem, 7vw, 4rem)" }}>{list.title}</h1>
-      {list.description && <p className="intro">{list.description}</p>}
-      <div className="meta">
-        <span className="pill quiet">{plural(items.length, "video", "videos")}</span>
-        {items.length > 0 && <span className="pill quiet">{done} of {items.length} watched</span>}
-        {v.followerCount > 0 && <span className="pill quiet">{plural(v.followerCount, "follower", "followers")}</span>}
-      </div>
-
-      {!v.isOwner && (
-        <form action={followListAction} className="actions">
-          <input type="hidden" name="listId" value={list.id} />
-          <input type="hidden" name="op" value={v.isFollowing ? "unfollow" : "follow"} />
-          <button className={v.isFollowing ? "button ghost" : "button"} aria-pressed={v.isFollowing}>
-            {v.isFollowing ? "Following" : "Follow this list"}
-          </button>
-        </form>
-      )}
+      <header className="list-head">
+        <p className="kicker">
+          <Link href="/lists">Lists</Link> / {v.isOwner ? "Your list" : `List by ${v.owner.display_name}`}
+          {!list.is_public && <> <span className="pill quiet">Private</span></>}
+        </p>
+        <h1>{list.title}</h1>
+        {list.description && <p className="intro">{list.description}</p>}
+        <Facts items={[plural(items.length, "video", "videos"), v.followerCount > 0 && plural(v.followerCount, "follower", "followers")]} />
+        {items.length > 0 && (
+          <div className="list-progress">
+            <span>{done} of {items.length} watched</span>
+            <div className="progress" role="progressbar" aria-label="Watched" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              <span style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+        {!v.isOwner && (
+          <form action={followListAction} className="actions">
+            <input type="hidden" name="listId" value={list.id} />
+            <input type="hidden" name="op" value={v.isFollowing ? "unfollow" : "follow"} />
+            <button className={v.isFollowing ? "button ghost" : "button"} aria-pressed={v.isFollowing}>
+              {v.isFollowing ? "Following this list" : "Follow this list"}
+            </button>
+          </form>
+        )}
+      </header>
 
       {items.length === 0 ? (
-        <p className="empty" style={{ marginTop: "2rem" }}>
-          {v.isOwner ? "No videos yet. Open any video and use “Add to list”." : "This list is empty."}
-        </p>
+        <div className="empty">
+          <strong>{v.isOwner ? "No videos yet." : "This list is empty."}</strong>
+          {v.isOwner && <p>Open any video and choose “Add to a list” to put it here.</p>}
+        </div>
       ) : (
         <ol className="list-items">
           {items.map((it, idx) => (
@@ -65,12 +76,14 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
                 ) : (
                   <Link href={`/watch/${it.resource_id}`}>{it.title}</Link>
                 )}
-                <small>
-                  {[it.creator_name, formatDuration(it.duration_s), it.rated === true ? "You: Worth it" : it.rated === false ? "You: Not worth it" : null]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </small>
-                {it.note && <small>“{it.note}”</small>}
+                <Facts
+                  items={[
+                    it.creator_name,
+                    formatDuration(it.duration_s),
+                    it.rated === true ? "You: Worth it" : it.rated === false ? "You: Not worth it" : null,
+                  ]}
+                />
+                {it.note && <span className="item-note">“{it.note}”</span>}
               </span>
               {v.isOwner && (
                 <span className="list-controls">
@@ -85,12 +98,11 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
       )}
 
       {v.isOwner && (
-        <form action={deleteListAction} style={{ marginTop: "3rem" }}>
+        <form action={deleteListAction} className="back">
           <input type="hidden" name="listId" value={list.id} />
-          <button className="link-button" style={{ color: "var(--danger)" }}>Delete this list</button>
+          <button className="link-button danger">Delete this list</button>
         </form>
       )}
-      <p><Link href="/lists">← All lists</Link></p>
     </>
   );
 }

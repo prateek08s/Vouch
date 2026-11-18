@@ -1,17 +1,16 @@
 "use server";
-import { authConfigured, demoAuthAllowed, siteOrigin } from "@/lib/auth/config";
+import { authConfigured, authProviders, siteOrigin } from "@/lib/auth/config";
 import { authClient } from "@/lib/auth/client";
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/server/db";
-import { getCurrentUser, signIn, signOut } from "@/lib/server/session";
+import { getCurrentUser, signOut } from "@/lib/server/session";
 import { ingestYouTubeUrl, INGEST_ERROR_MESSAGES } from "@/lib/resources/ingest";
 import { createVouch, VOUCH_ERROR_MESSAGES } from "@/lib/vouches";
 import { rate, recordOpen } from "@/lib/ratings";
 import { follow, unfollow } from "@/lib/graph/follows";
 import { defaultMetadataProvider } from "@/lib/youtube/metadata";
-import { createUser, getUserByUsername, usernameFrom } from "@/lib/users";
 import { completeOnboarding, saveTopics } from "@/lib/onboarding";
 import { setPassportSettings } from "@/lib/passport";
 import { createRule, deleteRule, type RuleKind } from "@/lib/rules";
@@ -32,34 +31,6 @@ const str = (f: FormData, k: string) => {
   const v = f.get(k);
   return typeof v === "string" ? v : "";
 };
-
-export async function signInAs(formData: FormData) {
-  if (!demoAuthAllowed()) redirect("/signin");
-  const db = await getDb();
-  const user = await getUserByUsername(db, str(formData, "username"));
-  // System curators (such as "Hacker News") are not accounts anyone can use.
-  if (!user || user.is_system) redirect("/signin?error=unknown");
-  await signIn(user.id);
-  redirect("/");
-}
-
-/** Development sign-up: a new account with only a name, sent straight to onboarding. */
-export async function createAccountAction(formData: FormData) {
-  if (!demoAuthAllowed()) redirect("/signin");
-  const name = str(formData, "name").trim().replace(/\s+/g, " ");
-  if (!name || name.length > 60) redirect("/signin?error=name");
-  const db = await getDb();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const suffix = String(Math.floor(1000 + Math.random() * 9000));
-    const r = await createUser(db, { username: usernameFrom(name, suffix), displayName: name });
-    if (r.ok) {
-      await signIn(r.user.id);
-      redirect("/onboarding");
-    }
-    if (r.error !== "username_taken") redirect("/signin?error=name");
-  }
-  redirect("/signin?error=name");
-}
 
 export async function onboardingTopicsAction(formData: FormData) {
   const user = await getCurrentUser();
@@ -254,8 +225,8 @@ export async function deleteListAction(formData: FormData) {
 
 export async function oauthSignIn(formData: FormData) {
   if (!authConfigured()) redirect("/signin?error=configuration");
-  const provider = str(formData, "provider");
-  if (provider !== "google" && provider !== "github") redirect("/signin");
+  const provider = authProviders().find((p) => p === str(formData, "provider"));
+  if (!provider) redirect("/signin");
   const { data, error } = await (await authClient()).auth.signInWithOAuth({
     provider,
     options: { redirectTo: siteOrigin() + "/auth/callback" },

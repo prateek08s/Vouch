@@ -13,9 +13,11 @@ export const metadata: Metadata = { title: "Taste Passport" };
 export default function PassportPage() {
   return (
     <>
-      <h1>Taste Passport</h1>
-      <p className="intro">What your vouches and Worth-It ratings say about your taste. Private unless you share it.</p>
-      <Suspense fallback={<p>Loading…</p>}>
+      <header className="page-head">
+        <h1>Your Taste Passport</h1>
+        <p>What your vouches and Worth-it ratings say about your taste. Private unless you share it.</p>
+      </header>
+      <Suspense fallback={<p className="muted">Loading…</p>}>
         <Own />
       </Suspense>
     </>
@@ -31,24 +33,26 @@ async function Own() {
   return (
     <>
       <PassportView p={p} />
-      <form action={passportSettingsAction} className="stack passport-settings">
+      <form action={passportSettingsAction} className="panel stack passport-settings">
         <fieldset className="field">
           <legend>Sharing</legend>
-          <label className="check">
-            <input type="checkbox" name="public" defaultChecked={p.settings.isPublic} />
-            <span>
-              Make my Passport public
-              <small className="trust-tag"> The public version uses only your vouches. Your Worth-It ratings stay private.</small>
-            </span>
-          </label>
-          <label className="check">
-            <input type="checkbox" name="success" defaultChecked={p.settings.showSuccess} />
-            <span>Show how my picks are rated on the public version</span>
-          </label>
+          <div className="stack" style={{ gap: "0.9rem" }}>
+            <label className="check">
+              <input type="checkbox" name="public" defaultChecked={p.settings.isPublic} />
+              <span>
+                Make my Passport public
+                <small>The public version uses only your vouches. Your Worth-it ratings stay private.</small>
+              </span>
+            </label>
+            <label className="check">
+              <input type="checkbox" name="success" defaultChecked={p.settings.showSuccess} />
+              <span>Show how my picks are rated on the public version</span>
+            </label>
+          </div>
         </fieldset>
         <div className="actions">
-          <button className="button">Save</button>
-          {p.settings.isPublic && <Link href={publicPath}>View your public Passport ↗</Link>}
+          <button className="button">Save sharing settings</button>
+          {p.settings.isPublic && <Link href={publicPath}>View your public Passport</Link>}
         </div>
       </form>
     </>

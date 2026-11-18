@@ -4,19 +4,30 @@ The human recommendation layer for video. Plan: `../Vouch_Detailed_Plan.md`.
 
 ## Run it
 
+Sign-in is Supabase Auth only: GitHub by default, Google optional (see AUTH_PROVIDERS). There are no demo accounts.
+
 ```bash
 npm install
-npm run dev            # http://localhost:3000, sign in as "Alex" to see a seeded Circle
+cp .env.example .env.local   # then fill in the Supabase values (see "Set up Supabase")
+npm run dev                  # http://localhost:3000
 ```
 
-The first request creates a local Postgres (PGlite) in `.data/pglite` and seeds demo curators
-with real YouTube videos. Delete `.data/` to start fresh. Set `YOUTUBE_API_KEY` to get durations
-(without it, metadata comes from oEmbed and has no runtime).
+On Windows, double-click `start-dev.cmd` to start or restart the server and `stop-dev.cmd` to stop it.
+
+Without `DATABASE_URL`, development uses a local Postgres (PGlite) in `.data/pglite`, which starts
+empty apart from topics; run the Hacker News import below to fill it. Without the Supabase values,
+the site runs signed out: Discover and public profiles work, sign-in shows a setup note.
+Set `YOUTUBE_API_KEY` to get durations (without it, metadata comes from oEmbed and has no runtime).
+
+Upgrading from the old demo build: `node scripts/remove-local-accounts.mjs --dry-run` lists the
+accounts that can no longer sign in (the demo curators); run it without `--dry-run`, with the dev
+server stopped, to back up `.data/pglite` and remove them. On Windows, `remove-demo-accounts.cmd`
+does the stop, removal and restart in one step.
 
 ## Test it
 
 ```bash
-npm test               # 314 tests: unit + database integration (real Postgres via PGlite)
+npm test               # 450 tests: unit + database integration (real Postgres via PGlite)
 npm run typecheck
 npm run lint
 node --experimental-transform-types scripts/smoke-oembed.mts   # live YouTube check
@@ -89,9 +100,8 @@ Taste Twins and Taste Archetypes (plan 7.3, 7.4), and a production view of `/ins
 
 ## Managed production foundation
 
-Production requires DATABASE_URL and Supabase Auth. Demo sign-in and name-only
-account creation are disabled in production. Existing local accounts are never
-automatically linked to OAuth identities by name or email.
+Production requires DATABASE_URL and Supabase Auth. Accounts are created only through
+OAuth sign-in (GitHub, optionally Google) and are linked by provider identity, never by name or email.
 
 ### Set up Supabase
 
@@ -105,10 +115,15 @@ automatically linked to OAuth identities by name or email.
 
    npx tsx --env-file=.env.local scripts/migrate.mts
 
+   Then load the Hacker News picks into it (the import uses DATABASE_URL when set):
+
+   npx tsx --env-file=.env.local scripts/hn/import.mts --year 2025
+
    Migrations are explicit and serialized under a database advisory lock.
    Production requests never apply migrations automatically.
-5. In Authentication > Providers, enable Google and GitHub and configure each
-   provider's client id and secret. Use Supabase's displayed provider callback
+5. In Authentication > Providers, enable GitHub (and Google, if you want it) and configure each
+   provider's client id and secret. The sign-in page offers only the providers in AUTH_PROVIDERS
+   (default: github); set AUTH_PROVIDERS=github,google after enabling Google. Use Supabase's displayed provider callback
    URL in the Google/GitHub provider configuration.
 6. In Authentication > URL Configuration, set the Site URL to your final HTTPS
    domain and allow https://YOUR-DOMAIN/auth/callback.

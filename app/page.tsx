@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -5,35 +6,27 @@ import { circleFeed, logImpressions } from "@/lib/feed/circle";
 import { recordImpressions } from "@/lib/analytics";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
-import { greeting, plural } from "@/lib/format";
+import { formatDuration, greeting, initials, plural } from "@/lib/format";
+import { publicPicks } from "@/lib/public";
 import { RecommendationCard } from "./components/RecommendationCard";
+import { PublicPicks } from "./components/PublicPicks";
+import { Facts } from "./components/Facts";
 import { deleteRuleAction } from "./actions";
 import { listRules } from "@/lib/rules";
 import { describeRule } from "@/lib/rules/describe";
 import { upNextFromLists, type UpNext } from "@/lib/lists";
-import { formatDuration } from "@/lib/format";
 
 export default async function CirclePage({ searchParams }: PageProps<"/">) {
   return (
-    <>
-      <div className="screening-heading"><p className="screening-kicker"><span aria-hidden="true" /> Your personal screening room</p><h1>Good taste.<br /><span>Great rabbit holes.</span></h1><p className="screening-caption">A few things worth your attention, chosen by people worth listening to.</p></div>
-      <Suspense fallback={<p className="intro">Finding what your circle vouched for…</p>}>
-        <Circle searchParams={searchParams} />
-      </Suspense>
-    </>
+    <Suspense fallback={<p className="muted">Finding what your circle vouched for…</p>}>
+      <Circle searchParams={searchParams} />
+    </Suspense>
   );
 }
 
 async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
   const user = await getCurrentUser();
-  if (!user) {
-    return (
-      <div className="empty">
-        <p>Vouch shows you what people whose taste you trust think is worth your time.</p>
-        <div className="actions"><Link className="button" href="/discover">Explore recommendations</Link><Link className="button ghost" href="/signin">Build your Circle</Link></div>
-      </div>
-    );
-  }
+  if (!user) return <Landing />;
 
   // New people pick topics and first follows before their (otherwise empty) Circle.
   if (!user.onboarded_at) redirect("/onboarding");
@@ -49,28 +42,35 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
     recordImpressions(db, user.id, "list", upNext.map((u) => ({ resourceId: u.item.resource_id, explanationCode: "list_next" }))),
   ]);
   const banner = blockedId ? await BlockedBanner({ userId: user.id, ruleId: blockedId }) : null;
+  const firstName = user.display_name.split(" ")[0];
 
   if (!page.items.length && cursor === 0) {
     return (
       <>
-      {banner}
-      <UpNextSection items={upNext} />
-      {page.hiddenByRules > 0 ? (
-        <div className="empty">
-          <p><strong>Your rules are hiding everything new.</strong></p>
-          <p>
-            Your circle vouched for {plural(page.hiddenByRules, "video", "videos")}, and your rules hid{" "}
-            {page.hiddenByRules === 1 ? "it" : "all of them"}. That is working as intended, but you may want to loosen one.
-          </p>
-          <Link className="button" href="/settings/rules">Review your rules</Link>
-        </div>
-      ) : (
-        <div className="empty">
-          <p><strong>Nothing new from your circle.</strong></p>
-          <p>Follow a few people whose taste you trust, and their vouches will show up here.</p>
-          <Link className="button" href="/people">Find people</Link>
-        </div>
-      )}
+        {banner}
+        <header className="page-head circle-head">
+          <h1>{greeting(new Date())}, {firstName}.</h1>
+        </header>
+        {page.hiddenByRules > 0 ? (
+          <div className="empty">
+            <strong>Your rules are hiding everything new.</strong>
+            <p>
+              Your circle vouched for {plural(page.hiddenByRules, "video", "videos")}, and your rules hid{" "}
+              {page.hiddenByRules === 1 ? "it" : "all of them"}. Loosen a rule if you want to see more.
+            </p>
+            <div className="actions"><Link className="button" href="/settings/rules">Review your rules</Link></div>
+          </div>
+        ) : (
+          <div className="empty">
+            <strong>Nothing new from your circle.</strong>
+            <p>Follow a few people whose taste you trust, and their vouches will show up here.</p>
+            <div className="actions">
+              <Link className="button" href="/people">Find people to follow</Link>
+              <Link className="button ghost" href="/discover">Browse public picks</Link>
+            </div>
+          </div>
+        )}
+        <UpNextSection items={upNext} />
       </>
     );
   }
@@ -79,30 +79,93 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
   return (
     <>
       {banner}
-      <p className="intro">
-        {greeting(new Date())}. {plural(page.curatorCount, "person you trust", "people you trust")} found{" "}
-        {plural(shown, "thing", "things")}
-        {page.nextCursor !== null ? "+" : ""} worth watching.
-      </p>
+      <header className="page-head wide circle-head">
+        <h1>{greeting(new Date())}, {firstName}.</h1>
+        <p>
+          {plural(page.curatorCount, "person you trust", "people you trust")} found{" "}
+          {plural(shown, "thing", "things")}
+          {page.nextCursor !== null ? "+" : ""} worth watching.
+        </p>
+      </header>
 
-      <div className="screening-grid">{page.items.map((item, index) => (
-        <RecommendationCard key={item.resourceId} item={item} featured={index === 0} />
-      ))}</div>
-
-      <UpNextSection items={upNext} />
+      <div className="feed">
+        {page.items.map((item, index) => (
+          <RecommendationCard key={item.resourceId} item={item} priority={index === 0} />
+        ))}
+      </div>
 
       {page.nextCursor !== null ? (
-        <div className="caught-up">
+        <div className="more">
           <Link className="button ghost" href={`/?page=${page.nextCursor}`}>Show a few more</Link>
         </div>
       ) : (
         <footer className="caught-up">
-          <strong><span aria-hidden="true">✓ </span>You’re caught up.</strong>
-          Go watch something worth your time.
+          <span className="check-mark" aria-hidden="true">✓</span>
+          <strong>You’re caught up.</strong>
+          <p className="muted">That’s everything your circle vouched for. Go watch something worth your time.</p>
           {page.hiddenByRules > 0 && (
-            <p className="trust-tag">{plural(page.hiddenByRules, "video was", "videos were")} hidden by your rules.</p>
+            <p className="muted">
+              {plural(page.hiddenByRules, "video was", "videos were")} hidden by your <Link href="/settings/rules">rules</Link>.
+            </p>
           )}
         </footer>
+      )}
+
+      <UpNextSection items={upNext} />
+    </>
+  );
+}
+
+/** Signed out: say what Vouch is, and show a real vouch rather than describing one. */
+async function Landing() {
+  const picks = await publicPicks(await getDb());
+  const specimen = picks.find((p) => p.note) ?? picks[0];
+  const rest = picks.filter((p) => p !== specimen).slice(0, 6);
+  return (
+    <>
+      <section className="landing" aria-labelledby="landing-h">
+        <div>
+          <h1 id="landing-h">Videos worth your time, picked by people you trust.</h1>
+          <p className="lede">
+            Vouch replaces the recommendation algorithm with people. Follow curators whose taste you trust, and every
+            video in your feed tells you who picked it and why.
+          </p>
+          <div className="actions">
+            <Link className="button large" href="/signin">Build your Circle</Link>
+            <Link className="button ghost large" href="/discover">Browse picks</Link>
+          </div>
+          <ul className="landing-points">
+            <li>Every pick names the person who vouched for it.</li>
+            <li>Your rules always win. Block a channel and it never comes back.</li>
+            <li>Your feed ends. No endless scroll, no autoplay.</li>
+          </ul>
+        </div>
+        {specimen && (
+          <figure className="specimen" aria-label="An example vouch">
+            <div className="byline">
+              <span className="avatar" aria-hidden="true">{initials(specimen.curator)}</span>
+              <span className="byline-text">
+                <strong>Vouched by {specimen.curator}</strong>
+                <span>@{specimen.username}</span>
+              </span>
+            </div>
+            {specimen.note && <blockquote className="note">{specimen.note}</blockquote>}
+            <a className="frame" href={specimen.canonical_url} target="_blank" rel="noreferrer">
+              {specimen.thumbnail_url ? <Image src={specimen.thumbnail_url} alt="" fill sizes="(max-width: 52rem) 100vw, 32rem" priority /> : <span className="placeholder">Vouch</span>}
+            </a>
+            <strong className="rec-title">{specimen.title}</strong>
+            <figcaption className="specimen-why">
+              In your Circle, every pick says why it’s there: <b>who vouched for it</b>, and how often their picks were worth it to you.
+            </figcaption>
+          </figure>
+        )}
+      </section>
+      {rest.length > 0 && (
+        <section className="section" aria-labelledby="recent-h">
+          <h2 id="recent-h" className="section-title">Recently vouched</h2>
+          <p className="section-note">A sample of public picks. Sign in to see the ones from people you follow.</p>
+          <PublicPicks picks={rest} />
+        </section>
       )}
     </>
   );
@@ -119,14 +182,14 @@ async function BlockedBanner({ userId, ruleId }: { userId: string; ruleId: strin
   );
   const label = describeRule(rule, { channelNames: new Map(ch ? [[rule.value, ch.name]] : []), topicNames: new Map() });
   return (
-    <div className="provenance banner" role="status">
+    <div className="notice" role="status">
       <span><strong>Rule added:</strong> {label}.</span>
       <form action={deleteRuleAction}>
         <input type="hidden" name="ruleId" value={rule.id} />
         <input type="hidden" name="back" value="circle" />
         <button className="link-button">Undo</button>
       </form>
-      <Link href="/settings/rules">All rules</Link>
+      <Link href="/settings/rules">See all rules</Link>
     </div>
   );
 }
@@ -136,18 +199,20 @@ function UpNextSection({ items }: { items: UpNext[] }) {
   if (!items.length) return null;
   return (
     <section aria-labelledby="upnext-h" className="upnext">
-      <h2 id="upnext-h" className="eyebrow">Up next from your lists</h2>
-      <ul className="people">
+      <h2 id="upnext-h" className="section-title">Up next in your lists</h2>
+      <p className="section-note">The next unwatched video in each list you follow.</p>
+      <ul className="upnext-grid">
         {items.map((u) => (
           <li key={u.listId}>
-            <span className="grow">
-              <Link href={`/watch/${u.item.resource_id}`}><strong>{u.item.title}</strong></Link>
-              <small>
-                {u.index + 1} of {u.total} in <Link href={`/lists/${u.listId}`}>{u.listTitle}</Link> by {u.ownerName}
-                {formatDuration(u.item.duration_s) ? ` · ${formatDuration(u.item.duration_s)}` : ""}
-              </small>
-              {u.item.note && <small>“{u.item.note}”</small>}
+            <span className="step">
+              Video {u.index + 1} of {u.total} in <Link href={`/lists/${u.listId}`}>{u.listTitle}</Link>
             </span>
+            <div className="progress" aria-hidden="true">
+              <span style={{ width: `${Math.round((u.index / Math.max(1, u.total)) * 100)}%` }} />
+            </div>
+            <Link className="title" href={`/watch/${u.item.resource_id}`}>{u.item.title}</Link>
+            <Facts items={[`List by ${u.ownerName}`, formatDuration(u.item.duration_s)]} />
+            {u.item.note && <p className="note sm indent">{u.item.note}</p>}
           </li>
         ))}
       </ul>

@@ -9,7 +9,7 @@ const MAX_TOPICS = 3;
 
 type TopicGroup = { name: string; topics: { slug: string; name: string }[] };
 
-export function VouchComposer({ groups, remaining }: { groups: TopicGroup[]; remaining: number }) {
+export function VouchComposer({ groups, remaining, limit }: { groups: TopicGroup[]; remaining: number; limit: number }) {
   const [state, action, pending] = useActionState<VouchState, FormData>(vouchAction, { status: "idle" });
   // Controlled, and submitted without a form reset, so a failed submit never loses what was typed.
   const [url, setUrl] = useState("");
@@ -21,11 +21,15 @@ export function VouchComposer({ groups, remaining }: { groups: TopicGroup[]; rem
 
   if (state.status === "ok" && state !== dismissed) {
     return (
-      <div className="worth">
-        <p className="success">You vouched for “{state.title.replace(/[.!?]$/, "")}.”</p>
-        <p>It will show up in your followers’ Circles.</p>
+      <div className="panel stack" style={{ maxWidth: "38rem" }} role="status">
+        <div>
+          <p className="success">Vouched.</p>
+          <p style={{ marginTop: "0.35rem" }}>
+            “{state.title.replace(/[.!?]$/, "")}” will show up in your followers’ Circles.
+          </p>
+        </div>
         <div className="actions">
-          <Link className="button" href={`/watch/${state.resourceId}`}>View it</Link>
+          <Link className="button" href={`/watch/${state.resourceId}`}>Open the video</Link>
           <button
             type="button"
             className="button ghost"
@@ -47,6 +51,7 @@ export function VouchComposer({ groups, remaining }: { groups: TopicGroup[]; rem
   const toggle = (slug: string) =>
     setPicked((p) => (p.includes(slug) ? p.filter((s) => s !== slug) : p.length < MAX_TOPICS ? [...p, slug] : p));
   const err = state.status === "error" && state !== dismissed ? state : null;
+  const used = Math.max(0, limit - remaining);
 
   return (
     <form
@@ -60,11 +65,18 @@ export function VouchComposer({ groups, remaining }: { groups: TopicGroup[]; rem
         startTransition(() => action(data));
       }}
     >
-      <p className="trust-tag">
-        {remaining > 0
-          ? `${remaining} ${remaining === 1 ? "vouch" : "vouches"} left today. A vouch means “this is worth your time.”`
-          : "You’ve used today’s vouches. Scarcity is what makes them mean something."}
-      </p>
+      <div className="quota">
+        {limit > 0 && limit <= 12 && (
+          <span className="quota-dots" aria-hidden="true">
+            {Array.from({ length: limit }, (_, i) => <i key={i} className={i < used ? "used" : undefined} />)}
+          </span>
+        )}
+        <span>
+          {remaining > 0
+            ? `${remaining} of ${limit} ${limit === 1 ? "vouch" : "vouches"} left today. A small daily limit keeps each one meaningful.`
+            : "You’ve used today’s vouches. They refill over the next 24 hours."}
+        </span>
+      </div>
 
       <div className="field">
         <label htmlFor="url">YouTube link</label>
@@ -72,18 +84,18 @@ export function VouchComposer({ groups, remaining }: { groups: TopicGroup[]; rem
       </div>
 
       <div className="field">
-        <label htmlFor="note">Why is it worth someone’s time? <span className="trust-tag">(optional)</span></label>
-        <textarea id="note" name="note" maxLength={NOTE_MAX + 50} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Best explanation of GPU scheduling I’ve seen." aria-describedby="note-count" />
+        <label htmlFor="note">Why is it worth someone’s time? <span className="optional">Optional</span></label>
+        <textarea id="note" name="note" className="note-input" maxLength={NOTE_MAX + 50} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Best explanation of GPU scheduling I’ve seen." aria-describedby="note-count" />
         <p id="note-count" className={`counter${note.length > NOTE_MAX ? " over" : ""}`} aria-live="polite">
           {note.length}/{NOTE_MAX}
         </p>
       </div>
 
       <fieldset className="field">
-        <legend>Topics <span className="trust-tag">(pick 1 to {MAX_TOPICS})</span></legend>
+        <legend>Topics <span className="optional">Pick 1 to {MAX_TOPICS}</span></legend>
         {groups.map((g) => (
-          <div key={g.name} style={{ marginBottom: "0.6rem" }}>
-            <p className="eyebrow" style={{ marginBottom: "0.3rem" }}>{g.name}</p>
+          <div key={g.name} className="topic-group">
+            <p className="topic-group-name">{g.name}</p>
             <div className="chips">
               {g.topics.map((t) => {
                 const on = picked.includes(t.slug);
@@ -101,15 +113,19 @@ export function VouchComposer({ groups, remaining }: { groups: TopicGroup[]; rem
 
       <label className="check">
         <input type="checkbox" name="own" checked={own} onChange={(e) => setOwn(e.target.checked)} />
-        <span>I made this, or I&apos;m involved with this channel. <span className="trust-tag">It will be labelled a creator vouch.</span></span>
+        <span>
+          I made this, or I&apos;m involved with this channel
+          <small>Your vouch will be labelled as a creator vouch.</small>
+        </span>
       </label>
 
       {err && <p id="form-error" className="error" role="alert">{err.message}</p>}
 
       <div className="actions">
-        <button className="button" disabled={pending || remaining === 0 || picked.length === 0 || note.length > NOTE_MAX}>
+        <button className="button large" disabled={pending || remaining === 0 || picked.length === 0 || note.length > NOTE_MAX}>
           {pending ? "Vouching…" : "Vouch"}
         </button>
+        {picked.length === 0 && remaining > 0 && <span className="muted">Pick at least one topic to vouch.</span>}
       </div>
     </form>
   );

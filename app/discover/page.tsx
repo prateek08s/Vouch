@@ -6,14 +6,24 @@ import { publicPicks } from "@/lib/public";
 import { PublicPicks } from "@/app/components/PublicPicks";
 
 export const metadata = { title: "Discover worthwhile videos", description: "Video recommendations with a human reason to watch." };
+
 export default function Discover() {
-  return <>
-    <h1>Worth a little of your time.</h1>
-    <p className="intro">Explore videos people chose to vouch for. Each pick comes with a person behind it.</p>
-    <p className="actions"><Link href="/signin" className="button">Build your Circle</Link></p>
-    <Suspense fallback={<p>Loading recommendations…</p>}><Picks /></Suspense>
-  </>;
+  return (
+    <>
+      <header className="page-head">
+        <h1>Discover</h1>
+        <p>The latest public vouches from everyone on Vouch. Each one has a person and a reason behind it.</p>
+        <div className="actions">
+          <Link href="/people" className="button ghost">Find people to follow</Link>
+        </div>
+      </header>
+      <Suspense fallback={<p className="muted">Loading recommendations…</p>}>
+        <Picks />
+      </Suspense>
+    </>
+  );
 }
+
 async function Picks() {
   await connection();
   return <PublicPicks picks={await publicPicks(await getDb())} />;

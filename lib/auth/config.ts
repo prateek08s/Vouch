@@ -1,10 +1,19 @@
-/** Demo accounts are confined to local development with no managed auth configured. */
+/** Sign-in is Supabase Auth only (Google and GitHub). Without it, nobody can sign in. */
 export function authConfigured(env = process.env): boolean {
   return Boolean(env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 }
 
-export function demoAuthAllowed(env = process.env): boolean {
-  return env.NODE_ENV !== "production" && !authConfigured(env);
+export type AuthProvider = "github" | "google";
+const KNOWN: readonly AuthProvider[] = ["github", "google"];
+
+/**
+ * Sign-in providers to offer, from AUTH_PROVIDERS (comma-separated, e.g. "github,google").
+ * Defaults to GitHub only. Enable a provider in Supabase before listing it here.
+ */
+export function authProviders(env = process.env): AuthProvider[] {
+  const listed = (env.AUTH_PROVIDERS ?? "github").split(",").map((p) => p.trim().toLowerCase());
+  const providers = KNOWN.filter((p) => listed.includes(p));
+  return providers.length ? providers : ["github"];
 }
 
 export function siteOrigin(env = process.env): string {

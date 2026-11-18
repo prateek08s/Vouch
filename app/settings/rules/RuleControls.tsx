@@ -6,12 +6,12 @@ type TopicOptions = { group: string; options: { slug: string; name: string }[] }
 
 export function RuleControls({ topicOptions, hasNoShorts }: { topicOptions: TopicOptions; hasNoShorts: boolean }) {
   return (
-    <section aria-labelledby="add-h" className="rule-controls">
-      <h2 id="add-h" className="eyebrow">Add a rule</h2>
+    <section aria-labelledby="add-h" className="panel rule-controls">
+      <h2 id="add-h" className="section-title">Add a rule</h2>
 
       <div className="field">
         <label htmlFor="rule-topic">Hide a topic</label>
-        <RuleForm kind="topic" label="Hide a topic">
+        <RuleForm kind="topic" label="Hide a topic" submitLabel="Hide">
           {(value, setValue) => (
             <select id="rule-topic" name="value" value={value} onChange={(e) => setValue(e.target.value)}>
               <option value="">Choose a topic…</option>
@@ -28,7 +28,7 @@ export function RuleControls({ topicOptions, hasNoShorts }: { topicOptions: Topi
 
       <div className="field">
         <label htmlFor="rule-keyword">Hide titles containing a word</label>
-        <RuleForm kind="keyword" label="Hide a keyword">
+        <RuleForm kind="keyword" label="Hide a keyword" submitLabel="Hide">
           {(value, setValue) => (
             <input id="rule-keyword" name="value" type="text" maxLength={50} placeholder="crypto" value={value} onChange={(e) => setValue(e.target.value)} />
           )}
@@ -52,7 +52,7 @@ export function RuleControls({ topicOptions, hasNoShorts }: { topicOptions: Topi
             <input id="rule-max" name="value" type="number" min={1} max={600} step={1} inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value)} />
           )}
         </RuleForm>
-        <p className="hint">With a length rule set, videos whose length we don’t know yet are hidden too.</p>
+        <p className="hint">With a length rule set, videos whose length isn’t known yet are hidden too.</p>
       </div>
 
       {!hasNoShorts && (

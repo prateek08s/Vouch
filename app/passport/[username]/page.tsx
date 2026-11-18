@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { publicPassport } from "@/lib/passport";
+import { initials } from "@/lib/format";
 import { PassportView } from "../PassportView";
 
 // Generic on purpose: a title naming the person would hint that a private Passport exists.
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Taste Passport", description: "Someo
 
 export default function PublicPassportPage(props: PageProps<"/passport/[username]">) {
   return (
-    <Suspense fallback={<p>Loading…</p>}>
+    <Suspense fallback={<p className="muted">Loading…</p>}>
       <Public {...props} />
     </Suspense>
   );
@@ -25,9 +26,14 @@ async function Public({ params }: PageProps<"/passport/[username]">) {
   if (!p) notFound();
   return (
     <>
-      <p className="eyebrow">Taste Passport</p>
-      <h1>{p.user.displayName}</h1>
-      <p className="intro">@{p.user.username}, from the videos they vouched for.</p>
+      <header className="profile-head">
+        <span className="avatar lg" aria-hidden="true">{initials(p.user.displayName)}</span>
+        <div className="grow">
+          <p className="kicker" style={{ margin: 0 }}>Taste Passport</p>
+          <h1>{p.user.displayName}</h1>
+          <p className="muted">@{p.user.username}, from the videos they vouched for</p>
+        </div>
+      </header>
       <PassportView p={p} />
     </>
   );

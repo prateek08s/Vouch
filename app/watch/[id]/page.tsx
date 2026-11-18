@@ -9,12 +9,13 @@ import { markOpened } from "@/lib/analytics";
 import { TRUST_LABEL, formatDuration, initials, plural } from "@/lib/format";
 import { blockChannelAction, rateAction } from "@/app/actions";
 import { AddToList } from "@/app/lists/ListForms";
+import { Facts } from "@/app/components/Facts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function WatchPage(props: PageProps<"/watch/[id]">) {
   return (
-    <Suspense fallback={<p className="intro">Loading…</p>}>
+    <Suspense fallback={<p className="muted">Loading the video…</p>}>
       <Watch {...props} />
     </Suspense>
   );
@@ -44,98 +45,105 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
   const runtime = formatDuration(r.duration_s);
   // Official embed, privacy-enhanced domain, no autoplay (plan 30: avoid autoplay).
   const embed = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(r.external_id)}?rel=0`;
+  const outside = w.publicVouchCount - w.notes.length;
 
   return (
-    <article>
-      <div className="player">
-        <iframe
-          src={embed}
-          title={`YouTube video player: ${r.title}`}
-          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          referrerPolicy="strict-origin-when-cross-origin"
-          allowFullScreen
-        />
-      </div>
+    <>
+      <article className="watch">
+        <div>
+          <div className="player">
+            <iframe
+              src={embed}
+              title={`YouTube video player: ${r.title}`}
+              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
 
-      <h1 className="watch-title">{r.title}</h1>
-      <div className="meta">
-        {runtime && <span className="pill">{runtime}</span>}
-        {r.creator_name && <span className="pill quiet">{r.creator_name}</span>}
-        {w.topics.map((t) => <span key={t.slug} className="pill quiet">{t.name}</span>)}
-        <a className="trust-tag" href={r.canonical_url} target="_blank" rel="noreferrer">Open on YouTube ↗</a>
-      </div>
-      {r.creator_external_id && (
-        <form action={blockChannelAction} className="inline-form">
-          <input type="hidden" name="resourceId" value={r.id} />
-          <button className="link-button">Never show {r.creator_name ?? "this channel"}</button>
-        </form>
-      )}
+          <h1 className="watch-title">{r.title}</h1>
+          <Facts items={[r.creator_name, runtime, ...w.topics.map((t) => t.name)]} />
 
-      <AddToList resourceId={r.id} lists={myLists} />
+          <div className="watch-tools">
+            <a className="tool" href={r.canonical_url} target="_blank" rel="noreferrer">Open on YouTube</a>
+            <AddToList resourceId={r.id} lists={myLists} />
+            {r.creator_external_id && (
+              <form action={blockChannelAction} className="inline-form">
+                <input type="hidden" name="resourceId" value={r.id} />
+                <button className="link-button">Never show {r.creator_name ?? "this channel"}</button>
+              </form>
+            )}
+          </div>
+        </div>
 
-      {w.via && (
-        <p className="provenance">
-          This reached you through <strong>{w.via.curatorName}</strong>.{" "}
-          {w.via.inCircle ? "You follow them." : "You don't follow them yet."}
-        </p>
-      )}
+        <aside className="watch-aside" aria-label="About this pick">
+          {w.via && (
+            <p className="via">
+              <span className="avatar sm" aria-hidden="true">{initials(w.via.curatorName)}</span>
+              <span>
+                Reached you through <strong>{w.via.curatorName}</strong>.{" "}
+                {w.via.inCircle ? "You follow them." : "You don’t follow them yet."}
+              </span>
+            </p>
+          )}
 
-      <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={w.via?.curatorName ?? null} />
+          <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={w.via?.curatorName ?? null} />
 
-      {w.notes.length > 0 && (
-        <section aria-labelledby="notes-h">
-          <h2 id="notes-h" className="eyebrow">Why people vouched</h2>
-          <ul className="notes">
-            {w.notes.map((n) => (
-              <li key={n.vouchId}>
-                <p className="byline">
-                  <span className="avatar" aria-hidden="true">{initials(n.curatorName)}</span>
-                  <span>
-                    <strong>{n.curatorName}</strong>
-                    {n.isOwnContent && <> · <span className="pill creator">Creator vouch</span></>}
-                    <br />
-                    <span className="trust-tag">{TRUST_LABEL[n.trustLevel]}</span>
-                  </span>
-                </p>
-                {n.note && <blockquote>“{n.note}”</blockquote>}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          {w.notes.length > 0 && (
+            <section aria-labelledby="notes-h">
+              <h2 id="notes-h" className="section-title">Why your circle vouched</h2>
+              <ul className="notes">
+                {w.notes.map((n) => (
+                  <li key={n.vouchId}>
+                    <div className="byline">
+                      <span className="avatar" aria-hidden="true">{initials(n.curatorName)}</span>
+                      <span className="byline-text">
+                        <strong>{n.curatorName}</strong>
+                        <span>{TRUST_LABEL[n.trustLevel]}</span>
+                      </span>
+                      {n.isOwnContent && <span className="pill creator">Creator vouch</span>}
+                    </div>
+                    {n.note && <blockquote className="note">{n.note}</blockquote>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {outside > 0 && (
+            <p className="muted">
+              {plural(outside, "more person", "more people")} outside your circle vouched for this.
+            </p>
+          )}
+        </aside>
+      </article>
+
       {hn.total > 0 && (
-        <section aria-labelledby="hn-h">
-          <h2 id="hn-h" className="eyebrow">Recommended on Hacker News</h2>
-          <p className="trust-tag">
+        <section className="hn" aria-labelledby="hn-h">
+          <h2 id="hn-h" className="section-title">Recommended on Hacker News</h2>
+          <p className="section-note">
             {plural(hn.total, "commenter", "commenters")} recommended this
-            {hn.total > hn.mentions.length ? `. The latest ${hn.mentions.length}:` : ":"}
+            {hn.total > hn.mentions.length ? `. Showing the latest ${hn.mentions.length}.` : "."}
           </p>
           <ul className="notes">
             {hn.mentions.map((m) => (
               <li key={m.commentId}>
-                <p className="byline">
+                <div className="byline">
                   <span className="avatar" aria-hidden="true">{initials(m.author)}</span>
-                  <span>
+                  <span className="byline-text">
                     <strong>{m.author}</strong>
-                    <br />
-                    <a className="trust-tag" href={m.url} target="_blank" rel="noreferrer">
-                      Comment from {m.postedAt.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })} ↗
+                    <a href={m.url} target="_blank" rel="noreferrer">
+                      Comment from {m.postedAt.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" })}
                     </a>
                   </span>
-                </p>
-                {m.excerpt && <blockquote>“{m.excerpt}”</blockquote>}
+                </div>
+                {m.excerpt && <blockquote className="note">{m.excerpt}</blockquote>}
               </li>
             ))}
           </ul>
         </section>
       )}
-      {w.publicVouchCount > w.notes.length && (
-        <p className="trust-tag">
-          {w.publicVouchCount - w.notes.length} more {w.publicVouchCount - w.notes.length === 1 ? "person" : "people"} outside your circle vouched for this.
-        </p>
-      )}
-      <p><Link href="/">← Back to your Circle</Link></p>
-    </article>
+      <p className="back"><Link href="/">Back to your Circle</Link></p>
+    </>
   );
 }
 
@@ -143,23 +151,19 @@ function WorthIt({ resourceId, via, rating, viaName }: { resourceId: string; via
   return (
     <section className="worth" aria-labelledby="worth-h">
       <h2 id="worth-h">Was this worth your time?</h2>
-      {rating === null ? (
-        <p>Your answer is private. It teaches Vouch whose recommendations work for you{viaName ? `, starting with ${viaName}` : ""}.</p>
-      ) : (
-        <p className="done">
-          You said {rating ? "Worth it" : "Not worth it"}. {rating ? "Noted, with thanks to whoever brought you here." : "Got it. Their next picks will weigh a little less."}
-        </p>
-      )}
-      <form action={rateAction} className="actions">
+      <form action={rateAction} className="verdicts">
         <input type="hidden" name="resourceId" value={resourceId} />
         <input type="hidden" name="via" value={via} />
-        <button className={rating === true ? "button" : "button ghost"} name="verdict" value="worth" aria-pressed={rating === true}>
-          Worth it
-        </button>
-        <button className={rating === false ? "button" : "button ghost"} name="verdict" value="not" aria-pressed={rating === false}>
-          Not worth it
-        </button>
+        <button className="verdict yes" name="verdict" value="worth" aria-pressed={rating === true}>Worth it</button>
+        <button className="verdict no" name="verdict" value="not" aria-pressed={rating === false}>Not worth it</button>
       </form>
+      {rating === null ? (
+        <p>Private to you. It teaches Vouch whose picks work for you{viaName ? `, starting with ${viaName}` : ""}.</p>
+      ) : (
+        <p className="done" role="status">
+          {rating ? "Saved as Worth it. Thanks for closing the loop." : "Saved as Not worth it. Similar picks will weigh a little less."}
+        </p>
+      )}
     </section>
   );
 }

@@ -7,10 +7,10 @@ export const alt = "A Vouch Taste Passport";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const INK = "#f0efdf";
-const MUTED = "#a4a79a";
-const ACCENT = "#d5ed91";
-const PAPER = "#10110f";
+const INK = "#151a30";
+const MUTED = "#5f667e";
+const ACCENT = "#1f3bb3";
+const PAPER = "#f6f7f9";
 
 /** The share card (plan 7.5). Private Passports get a generic card, so nothing leaks through the image. */
 export default async function Image({ params }: { params: Promise<{ username: string }> }) {
@@ -23,7 +23,7 @@ export default async function Image({ params }: { params: Promise<{ username: st
   return new ImageResponse(
     (
       <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: PAPER, color: INK, padding: 72, fontFamily: "sans-serif" }}>
-        <div style={{ display: "flex", fontSize: 28, color: ACCENT, letterSpacing: 4 }}>TASTE PASSPORT</div>
+        <div style={{ display: "flex", fontSize: 28, color: ACCENT, fontWeight: 600 }}>Taste Passport</div>
         <div style={{ display: "flex", fontSize: 72, fontWeight: 700, marginTop: 16 }}>{p ? p.user.displayName : "Vouch"}</div>
         {p ? (
           <div style={{ display: "flex", flexDirection: "column", marginTop: 40, gap: 14 }}>

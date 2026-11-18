@@ -2,11 +2,10 @@ import { openPostgres } from "@/lib/db/postgres";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { openPglite, type Db } from "@/lib/db";
-import { seedDemo } from "@/lib/seed/demo";
 
 /**
- * One database per server process. Local dev uses a PGlite directory under .data/;
- * production will swap this for a Supabase adapter implementing the same Db interface.
+ * One database per server process. With DATABASE_URL (Supabase Postgres) it uses that;
+ * otherwise, in development only, a local PGlite directory under .data/.
  */
 const globalForDb = globalThis as unknown as { __vouchDb?: Promise<Db> };
 
@@ -18,11 +17,7 @@ export function getDb(): Promise<Db> {
       const dir = process.env.VOUCH_DATA_DIR ?? path.join(process.cwd(), ".data", "pglite");
       // PGlite creates only the last path segment, not missing parents.
       await mkdir(path.dirname(dir), { recursive: true });
-      const db = await openPglite(dir);
-      if (process.env.VOUCH_SEED !== "0") {
-        await seedDemo(db);
-      }
-      return db;
+      return openPglite(dir);
     })().catch((err) => {
       globalForDb.__vouchDb = undefined; // allow a retry on the next request
       throw err;
