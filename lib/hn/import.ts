@@ -49,7 +49,7 @@ export type ImportStats = {
 type Deps = {
   db: Db;
   metadata: MetadataProvider;
-  /** Parallel YouTube lookups. Database writes stay sequential. */
+  /** Parallel YouTube lookups and parallel per-video database writes. */
   concurrency?: number;
   onProgress?: (done: number, total: number) => void;
   now?: () => Date;
@@ -96,11 +96,13 @@ export async function importHn(
   const metadata = await prefetch(tagged.filter((a) => !known.has(a.videoId)).map((a) => a.videoId), deps.metadata, deps.concurrency ?? 6, deps.onProgress);
 
   const resourceIds = new Map<string, string>();
-  for (const a of tagged) {
+  // Writes run in parallel too: each round trip to a distant database is slow, and videos are
+  // independent (vouches still serialize on the curator row inside createVouch).
+  async function write(a: VideoAggregate) {
     const r = await ingestYouTubeUrl(canonicalYouTubeUrl(a.videoId), { db, metadata });
     if (!r.ok) {
       skip(r.error);
-      continue;
+      return;
     }
     resourceIds.set(a.videoId, r.resource.id);
 
@@ -129,6 +131,11 @@ export async function importHn(
       if (v.ok) stats.imported++;
     }
   }
+  let nextWrite = 0;
+  async function writer() {
+    while (nextWrite < tagged.length) await write(tagged[nextWrite++]);
+  }
+  await Promise.all(Array.from({ length: Math.min(deps.concurrency ?? 6, tagged.length) }, writer));
 
   const imported = aggs.filter((a) => resourceIds.has(a.videoId));
   const byVideo = new Map(imported.map((a) => [a.videoId, a]));
