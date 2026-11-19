@@ -7,12 +7,16 @@ import { getWatchData } from "@/lib/watch";
 import { hnMentionsFor } from "@/lib/hn/import";
 import { markOpened } from "@/lib/analytics";
 import { recordOpen } from "@/lib/ratings";
-import { TRUST_LABEL, formatDuration, initials, plural } from "@/lib/format";
+import { TRUST_LABEL, formatDuration, initials, monthYear, plural } from "@/lib/format";
 import { blockChannelAction, rateAction, reportAction } from "@/app/watch/actions";
 import { REASON_LABEL, REPORT_REASONS } from "@/lib/moderation";
 import { AddToList } from "@/app/lists/ListForms";
 import { myListsFor } from "@/lib/lists";
 import { Facts } from "@/app/components/Facts";
+import { LocalActions } from "@/app/components/local/LocalActions";
+import { socialEnabled } from "@/lib/flags";
+import { recordAnon } from "@/lib/experiment";
+import { anonContext } from "@/lib/experiment/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,6 +40,9 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
   const db = await getDb();
   const w = await getWatchData(db, user?.id ?? null, id, via);
   if (!w) notFound();
+  const social = socialEnabled();
+  const anon = await anonContext();
+  if (anon) await recordAnon(db, anon.anonId, anon.variant, "open", [id]);
   if (user) {
     // Opening a recommendation is the step between "shown" and "worth it". Credit goes to the
     // curator whose pick the person opened first (recordOpen keeps the first attribution).
@@ -43,7 +50,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
     if (via) await recordOpen(db, { userId: user.id, resourceId: id, vouchId: via });
   }
   const myLists = user ? await myListsFor(db, user.id, id) : [];
-  const hn = await hnMentionsFor(db, id);
+  const hn = await hnMentionsFor(db, id, 10);
   const r = w.resource;
   const runtime = formatDuration(r.duration_s);
   // Official embed, privacy-enhanced domain, no autoplay (plan 30: avoid autoplay).
@@ -70,6 +77,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
           <div className="watch-tools">
             <a className="tool" href={r.canonical_url} target="_blank" rel="noreferrer">Open on YouTube</a>
             {user && <AddToList resourceId={r.id} lists={myLists} />}
+            <LocalActions resourceId={r.id} title={r.title} thumb={r.thumbnail_url} rate={false} />
             {user && r.creator_external_id && (
               <form action={blockChannelAction} className="inline-form">
                 <input type="hidden" name="resourceId" value={r.id} />
@@ -80,7 +88,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
         </div>
 
         <aside className="watch-aside" aria-label="About this pick">
-          {w.via && (
+          {social && w.via && (
             <p className="via">
               <span className="avatar sm" aria-hidden="true">{initials(w.via.curatorName)}</span>
               <span>
@@ -91,7 +99,9 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
           )}
 
           {user ? (
-            <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={w.via?.curatorName ?? null} />
+            <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={social ? w.via?.curatorName ?? null : null} />
+          ) : !social ? (
+            <LocalActions resourceId={r.id} title={r.title} thumb={r.thumbnail_url} rate />
           ) : (
             <section className="worth" aria-labelledby="worth-h">
               <h2 id="worth-h">Was this worth your time?</h2>
@@ -102,15 +112,23 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
 
           {w.notes.length > 0 && (
             <section aria-labelledby="notes-h">
-              <h2 id="notes-h" className="section-title">{user ? "Why your circle vouched" : "Why people vouched"}</h2>
+              <h2 id="notes-h" className="section-title">{user && social ? "Why your circle vouched" : "Why people vouched"}</h2>
               <ul className="notes">
-                {w.notes.map((n) => (
+                {w.notes.map((n) => {
+                  // An imported note is a quote: credit the commenter who wrote it, not the importer.
+                  const quoted = n.isSystem ? hn.mentions.find((m) => m.excerpt && m.excerpt === n.note) ?? null : null;
+                  return (
                   <li key={n.vouchId}>
                     <div className="byline">
-                      <span className="avatar" aria-hidden="true">{initials(n.curatorName)}</span>
+                      <span className="avatar" aria-hidden="true">{initials(quoted?.author ?? n.curatorName)}</span>
                       <span className="byline-text">
-                        <strong>{n.curatorName}</strong>
-                        {user && <span>{TRUST_LABEL[n.trustLevel]}</span>}
+                        <strong>{quoted?.author ?? n.curatorName}</strong>
+                        {quoted && (
+                          <a href={quoted.url} target="_blank" rel="noreferrer">
+                            on Hacker News, {monthYear(quoted.postedAt)}
+                          </a>
+                        )}
+                        {user && social && <span>{TRUST_LABEL[n.trustLevel]}</span>}
                       </span>
                       {n.isOwnContent && <span className="pill creator">Creator vouch</span>}
                     </div>
@@ -139,11 +157,12 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
                       </details>
                     ))}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           )}
-          {user && outside > 0 && (
+          {user && social && outside > 0 && (
             <p className="muted">
               {plural(outside, "more person", "more people")} outside your circle vouched for this.
             </p>
@@ -176,7 +195,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
           </ul>
         </section>
       )}
-      <p className="back"><Link href={user ? "/" : "/discover"}>{user ? "Back to your Circle" : "Browse more picks"}</Link></p>
+      <p className="back"><Link href="/">{user && social ? "Back to your Circle" : "Browse more picks"}</Link></p>
     </>
   );
 }

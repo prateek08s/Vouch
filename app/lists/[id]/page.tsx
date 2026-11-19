@@ -1,14 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
+import { socialEnabled } from "@/lib/flags";
 import { getList } from "@/lib/lists";
 import { formatDuration, plural } from "@/lib/format";
 import { deleteListAction, followListAction, listItemAction } from "@/app/lists/actions";
 import { Facts } from "@/app/components/Facts";
 
+const NOBODY = "00000000-0000-0000-0000-000000000000";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function ListPage(props: PageProps<"/lists/[id]">) {
@@ -20,11 +22,11 @@ export default function ListPage(props: PageProps<"/lists/[id]">) {
 }
 
 async function ListView({ params }: PageProps<"/lists/[id]">) {
+  // Public lists are readable signed out; "nobody" matches no owner, follow or rating.
   const user = await getCurrentUser();
-  if (!user) redirect("/signin");
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const v = await getList(await getDb(), user.id, id);
+  const v = await getList(await getDb(), user?.id ?? NOBODY, id);
   if (!v) notFound();
   const { list, items } = v;
   const done = items.filter((i) => i.rated !== null).length;
@@ -34,7 +36,7 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
     <>
       <header className="list-head">
         <p className="kicker">
-          <Link href="/lists">Lists</Link> / {v.isOwner ? "Your list" : `List by ${v.owner.display_name}`}
+          <Link href="/lists">{socialEnabled() ? "Lists" : "Collections"}</Link> / {v.isOwner ? "Your list" : `List by ${v.owner.display_name}`}
           {!list.is_public && <> <span className="pill quiet">Private</span></>}
         </p>
         <h1>{list.title}</h1>
@@ -48,7 +50,7 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
             </div>
           </div>
         )}
-        {!v.isOwner && (
+        {user && socialEnabled() && !v.isOwner && (
           <form action={followListAction} className="actions">
             <input type="hidden" name="listId" value={list.id} />
             <input type="hidden" name="op" value={v.isFollowing ? "unfollow" : "follow"} />

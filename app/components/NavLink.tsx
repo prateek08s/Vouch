@@ -2,15 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { socialEnabled } from "@/lib/flags";
 
-export const NAV = [
+const SOCIAL_NAV = [
   { href: "/", label: "Circle" },
   { href: "/discover", label: "Discover" },
   { href: "/search", label: "Search" },
   { href: "/lists", label: "Lists" },
   { href: "/people", label: "People" },
+  { href: "/saved", label: "Saved" },
   { href: "/settings", label: "Settings" },
 ] as const;
+
+/** Without the social layer, home is Discover and there is no one to follow yet. */
+const PLAIN_NAV = [
+  { href: "/", label: "Discover" },
+  { href: "/search", label: "Search" },
+  { href: "/lists", label: "Collections" },
+  { href: "/saved", label: "Saved" },
+] as const;
+
+export const NAV = socialEnabled() ? SOCIAL_NAV : PLAIN_NAV;
 
 /**
  * Marks the current section, so the header says where you are.

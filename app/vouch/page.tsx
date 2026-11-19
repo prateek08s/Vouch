@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
+import { socialEnabled } from "@/lib/flags";
 import { groupedTopics, loadTopics } from "@/lib/topics";
 import { DAILY_LIMIT, remainingVouchesToday } from "@/lib/vouches";
 import { VouchComposer } from "./VouchComposer";
@@ -26,6 +27,8 @@ export default function VouchPage() {
 async function Composer() {
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
+  // Public vouching waits for the social layer; admins can still add picks (lib/flags).
+  if (!socialEnabled() && !user.is_admin) notFound();
   const db = await getDb();
   const [topics, remaining] = await Promise.all([loadTopics(db), remainingVouchesToday(db, user.id)]);
 

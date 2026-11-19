@@ -476,3 +476,37 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .chip-link { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 999px; border: 1px solid var(--rule-strong); background: var(--surface); font-size: var(--t-sm); color: var(--ink-2); text-decoration: none; }
 .chip-link:hover { border-color: var(--ink-2); color: var(--ink); }
 .chip-link.on { background: var(--pen); border-color: var(--pen); color: #fff; font-weight: 600; }
+
+/* Home hero: one line of what Vouch is, then the picks. */
+.hero { padding: 1rem 0 2.25rem; max-width: 52rem; }
+.hero h1 { font-size: clamp(2rem, 4.2vw, 3.1rem); line-height: 1.05; letter-spacing: -0.04em; text-wrap: balance; }
+.hero .lede { font-size: var(--t-lg); color: var(--ink-2); line-height: 1.5; margin-top: 1rem; max-width: 58ch; }
+
+/* Discover controls: length, sort, hide watched. */
+.feed-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.5rem; margin: -0.5rem 0 1.25rem; }
+.feed-controls .chip-link { font-size: var(--t-xs); padding: 0.22rem 0.65rem; }
+.hide-watched { align-items: center; margin-left: auto; color: var(--ink-2); }
+.watched-badge { display: inline-block; width: fit-content; font-size: var(--t-xs); font-weight: 600; color: var(--worth); background: var(--worth-soft); border-radius: 999px; padding: 0.1rem 0.55rem; }
+.watched-badge[hidden] { display: none; }
+.rec.is-watched .rec-media { opacity: 0.55; }
+
+/* Save and Watched on the watch page. */
+.local-tools { display: flex; gap: 0.5rem; }
+
+/* Saved page. */
+.saved-list { list-style: none; margin: 0 0 1.5rem; padding: 0; border-top: 1px solid var(--rule); }
+.saved-list li { display: grid; grid-template-columns: 10rem minmax(0, 1fr) auto; gap: 1rem 1.25rem; align-items: center; padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+.saved-list .frame { position: relative; aspect-ratio: 16 / 9; border-radius: var(--r-sm); overflow: hidden; background: var(--sunk); }
+.saved-list .saved-title { display: block; font-weight: 600; color: var(--ink); text-decoration: none; margin-bottom: 0.35rem; }
+.saved-list .saved-title:hover { color: var(--pen); }
+.saved-list li.is-watched .frame { opacity: 0.55; }
+@media (max-width: 40rem) { .saved-list li { grid-template-columns: 6.5rem minmax(0, 1fr); } .saved-list li > button { grid-column: 2; justify-self: start; } }
+
+/* Email sign-in. */
+.email-signin { display: grid; gap: 0.4rem; }
+.email-signin label { font-weight: 600; font-size: var(--t-sm); }
+.email-row { display: flex; gap: 0.5rem; }
+.email-row input { flex: 1; min-width: 0; font: inherit; min-height: 3rem; padding: 0 0.8rem; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); background: var(--surface); }
+.email-row .button { min-height: 3rem; }
+@media (max-width: 30rem) { .email-row { flex-direction: column; } }
+.rec[hidden] { display: none; }

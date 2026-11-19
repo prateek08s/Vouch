@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { socialEnabled } from "@/lib/flags";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
@@ -25,6 +26,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STEPS = ["Topics", "Quick choices", "People and lists"] as const;
 
 export default function OnboardingPage(props: PageProps<"/onboarding">) {
+  // Hidden until there are real curators (lib/flags).
+  if (!socialEnabled()) notFound();
   return (
     <Suspense fallback={<p className="muted">Loading…</p>}>
       <Onboarding {...props} />

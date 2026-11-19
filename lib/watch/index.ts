@@ -12,6 +12,8 @@ export type WatchNote = {
   createdAt: Date;
   inCircle: boolean;
   trustLevel: TrustLevel;
+  /** A Vouch-run curator such as Hacker News; its notes are quotes from real commenters. */
+  isSystem: boolean;
 };
 
 export type WatchData = {
@@ -69,6 +71,7 @@ export async function getWatchData(
     createdAt: v.created_at,
     inCircle: v.in_circle,
     trustLevel: trustLevel(trustFor(trust.get(v.curator_id), v.topic_ids)),
+    isSystem: v.is_system,
   }));
 
   // Existing attribution wins over the query string: the first person who brought you is the one credited.

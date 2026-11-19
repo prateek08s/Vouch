@@ -7,6 +7,7 @@ import { ingestYouTubeUrl, INGEST_ERROR_MESSAGES } from "@/lib/resources/ingest"
 import { createVouch, MAX_TOPICS, NOTE_MAX, remainingVouchesToday, VOUCH_ERROR_MESSAGES } from "@/lib/vouches";
 import { defaultMetadataProvider } from "@/lib/youtube/metadata";
 import { str } from "@/lib/server/form";
+import { socialEnabled } from "@/lib/flags";
 
 export type VouchState =
   | { status: "idle" }
@@ -16,6 +17,7 @@ export type VouchState =
 export async function vouchAction(_prev: VouchState, formData: FormData): Promise<VouchState> {
   const user = await getCurrentUser();
   if (!user) return { status: "error", message: "Sign in to vouch." };
+  if (!socialEnabled() && !user.is_admin) return { status: "error", message: "Vouching is invite-only for now." };
   const db = await getDb();
   const topics = formData.getAll("topics").filter((t): t is string => typeof t === "string");
   // Validate and check the daily limit before any YouTube request: a refused vouch costs nothing.

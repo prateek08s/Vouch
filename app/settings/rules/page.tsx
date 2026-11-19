@@ -9,6 +9,7 @@ import { describeRule, sortRules } from "@/lib/rules/describe";
 import { groupedTopics, loadTopics } from "@/lib/topics";
 import { deleteRuleAction } from "@/app/settings/rules/actions";
 import { RuleControls } from "./RuleControls";
+import { socialEnabled } from "@/lib/flags";
 
 export const metadata: Metadata = { title: "Rules" };
 
@@ -17,7 +18,7 @@ export default function RulesPage() {
     <>
       <header className="page-head">
         <h1>Rules</h1>
-        <p>Your rules are absolute. They run before ranking in your Circle, your lists and search, and popularity never overrides them.</p>
+        <p>Your rules are absolute. They run before ranking everywhere you see picks, and popularity never overrides them.</p>
       </header>
       <Suspense fallback={<p className="muted">Loading your rules…</p>}>
         <Rules />
@@ -62,7 +63,7 @@ async function Rules() {
       <section aria-labelledby="active-h">
         <h2 id="active-h" className="section-title">Active rules</h2>
         {active.length === 0 ? (
-          <p className="section-note">No rules yet. Everything your circle vouches for can appear.</p>
+          <p className="section-note">No rules yet. {socialEnabled() ? "Everything your circle vouches for can appear." : "Every pick can appear."}</p>
         ) : (
           <ul className="rows">
             {active.map((r) => (
@@ -84,7 +85,8 @@ async function Rules() {
         <p className="hint" style={{ marginTop: "1rem" }}>To block a channel, open one of its videos and choose “Never show” under the player.</p>
       </section>
 
-      <RuleControls topicOptions={topicOptions} hasNoShorts={has("no_shorts")} />
+      {/* Topic, keyword and length rules wait for the social layer; length is a Discover filter for now. */}
+      {socialEnabled() && <RuleControls topicOptions={topicOptions} hasNoShorts={has("no_shorts")} />}
     </div>
   );
 }

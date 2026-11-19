@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/server/session";
 import { signOutAction } from "@/app/auth/actions";
 import { NavLinks, StaticNavLinks } from "./components/NavLink";
+import { socialEnabled } from "@/lib/flags";
 import { Avatar } from "./components/Avatar";
 import "./globals.css";
 
@@ -26,7 +27,7 @@ const serif = localFont({
 
 export const metadata: Metadata = {
   title: { default: "Vouch", template: "%s | Vouch" },
-  description: "Discover what's worth watching through people whose taste you trust.",
+  description: "Long YouTube videos Hacker News commenters recommended, each with the comment that recommended it.",
 };
 
 async function UserNav() {
@@ -34,15 +35,15 @@ async function UserNav() {
   if (!user) {
     return (
       <div className="nav-user">
-        <Link href="/signin" className="button">Sign in</Link>
+        <Link href="/signin" className="button ghost">Sign in</Link>
       </div>
     );
   }
   return (
     <div className="nav-user">
       {user.is_admin && <Link href="/admin" className="button quiet small">Reports</Link>}
-      <Link href="/vouch" className="button">Vouch for a video</Link>
-      <Link href="/passport" className="who" title="Your Taste Passport">
+      {(socialEnabled() || user.is_admin) && <Link href="/vouch" className="button">Vouch for a video</Link>}
+      <Link href={socialEnabled() ? "/passport" : "/settings"} className="who" title={socialEnabled() ? "Your Taste Passport" : "Settings"}>
         <Avatar name={user.display_name} src={user.avatar_url} size="sm" />
         <span className="who-name">{user.display_name}</span>
       </Link>

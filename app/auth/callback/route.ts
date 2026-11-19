@@ -1,3 +1,4 @@
+import { socialEnabled } from "@/lib/flags";
 import { NextResponse, type NextRequest } from "next/server";
 import { authClient } from "@/lib/auth/client";
 import { siteOrigin } from "@/lib/auth/config";
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
       const { data: { user } } = await client.auth.getUser();
       if (user) {
         const profile = await ensureProfile(await getDb(), user);
-        return NextResponse.redirect(new URL(profile.onboarded_at ? "/" : "/onboarding", siteOrigin()), {
+        return NextResponse.redirect(new URL(profile.onboarded_at || !socialEnabled() ? "/" : "/onboarding", siteOrigin()), {
           headers: { "Cache-Control": "private, no-store" },
         });
       }

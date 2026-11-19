@@ -1,8 +1,12 @@
 import type { Db } from "@/lib/db";
 
+/** The Hacker News comment behind an imported pick: who wrote the quoted note, and where. */
+export type HnCredit = { author: string; url: string; postedAt: Date; total: number };
+
 export type PublicPick = {
   id: string; title: string; canonical_url: string; thumbnail_url: string | null;
   note: string | null; curator: string; username: string;
+  hn?: HnCredit | null;
 };
 
 /** Public endorsements only. Ratings, identities, trust edges and private lists never leave this boundary. */

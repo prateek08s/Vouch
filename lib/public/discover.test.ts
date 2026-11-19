@@ -55,3 +55,39 @@ it("filters by topic, including subtopics, and pages", async () => {
   expect(rest.nextCursor).toBeNull();
   expect(rest.picks.map((p) => p.title)).not.toContain("Biology");
 });
+
+it("filters by length and sorts by newest or shortest", async () => {
+  const mk = async (title: string, durationS: number, d: number) => {
+    const u = await fx.user(db, undefined, "founding");
+    const r = await fx.resource(db, { title, durationS });
+    const v = await createVouch({ userId: u, resourceId: r, topicSlugs: ["gpu"] }, { db, now: daysAgo(d) });
+    if (!v.ok) throw new Error(v.error);
+  };
+  await mk("Ten minutes", 600, 5);
+  await mk("Forty minutes", 2400, 1);
+  await mk("Two hours", 7200, 3);
+  const titles = async (o: Parameters<typeof discoverPicks>[2]) =>
+    (await discoverPicks(db, null, { now: NOW, ...o })).picks.map((p) => p.title);
+  expect(await titles({ length: "short" })).toEqual(["Ten minutes"]);
+  expect(await titles({ length: "medium" })).toEqual(["Forty minutes"]);
+  expect(await titles({ length: "long" })).toEqual(["Two hours"]);
+  expect(await titles({ sort: "shortest" })).toEqual(["Ten minutes", "Forty minutes", "Two hours"]);
+  expect(await titles({ sort: "newest" })).toEqual(["Forty minutes", "Two hours", "Ten minutes"]);
+});
+
+it("credits the Hacker News commenter whose words are the note", async () => {
+  const [hn] = await db.query<{ id: string }>(
+    "insert into users (username, display_name, is_system) values ('hn_disc_test', 'Hacker News', true) on conflict (username) do update set is_system = true returning id",
+  );
+  const r = await fx.resource(db, { title: "Quoted" });
+  const v = await createVouch({ userId: hn.id, resourceId: r, topicSlugs: ["gpu"], note: "the long, quoted reason" }, { db, now: daysAgo(1) });
+  if (!v.ok) throw new Error(v.error);
+  await db.query(
+    `insert into hn_mentions (comment_id, resource_id, author, posted_at, excerpt) values
+       (111, $1, 'alice', '2025-03-02', 'short'), (222, $1, 'bob', '2025-04-10', 'the long, quoted reason'), (333, $1, 'carol', '2025-05-01', null)`,
+    [r],
+  );
+  const [pick] = (await discoverPicks(db, null, { now: NOW })).picks.filter((p) => p.title === "Quoted");
+  expect(pick.hn).toMatchObject({ author: "bob", url: "https://news.ycombinator.com/item?id=222", total: 3 });
+  expect(pick.hn!.postedAt.toISOString()).toBe("2025-04-10T00:00:00.000Z");
+});

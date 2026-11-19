@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { socialEnabled } from "@/lib/flags";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
@@ -11,6 +12,8 @@ import { PassportView } from "../PassportView";
 export const metadata: Metadata = { title: "Taste Passport", description: "Someone's taste, in topics, from the videos they vouched for on Vouch." };
 
 export default function PublicPassportPage(props: PageProps<"/passport/[username]">) {
+  // Hidden until there are real curators (lib/flags).
+  if (!socialEnabled()) notFound();
   return (
     <Suspense fallback={<p className="muted">Loading…</p>}>
       <Public {...props} />

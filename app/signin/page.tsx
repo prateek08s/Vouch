@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { authConfigured, authProviders } from "@/lib/auth/config";
+import { authConfigured, authProviders, emailSignIn } from "@/lib/auth/config";
+import { socialEnabled } from "@/lib/flags";
+import { EmailForm } from "./EmailForm";
 import { oauthSignIn } from "@/app/auth/actions";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -33,18 +35,27 @@ export default function SignInPage({ searchParams }: PageProps<"/signin">) {
     <div className="signin">
       <header>
         <h1>Sign in to Vouch</h1>
-        <p className="intro">Follow people whose taste you trust, save what you find, and build your Circle.</p>
+        <p className="intro">
+          {socialEnabled()
+            ? "Follow people whose taste you trust, save what you find, and build your Circle."
+            : "You don’t need an account to browse, save or rate. Sign in to make lists and keep your ratings across devices."}
+        </p>
       </header>
-      <form action={oauthSignIn} className="provider">
-        {authProviders().map((p, i) => (
-          <button key={p} className={i === 0 ? "button" : "button ghost"} name="provider" value={p}>
-            Continue with {PROVIDER_LABEL[p]}
-          </button>
-        ))}
-      </form>
+      {authProviders().length > 0 && (
+        <form action={oauthSignIn} className="provider">
+          {authProviders().map((p, i) => (
+            <button key={p} className={i === 0 ? "button" : "button ghost"} name="provider" value={p}>
+              Continue with {PROVIDER_LABEL[p]}
+            </button>
+          ))}
+        </form>
+      )}
+      {emailSignIn() && <EmailForm primary={authProviders().length === 0} />}
       <Suspense fallback={null}><SignInError searchParams={searchParams} /></Suspense>
       <p className="muted">
-        New here? Signing in creates your account. Setup takes about a minute: pick a few topics and people to follow.
+        {socialEnabled()
+          ? "New here? Signing in creates your account. Setup takes about a minute: pick a few topics and people to follow."
+          : "New here? Signing in creates your account. There’s no setup."}
       </p>
     </div>
   );

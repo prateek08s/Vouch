@@ -4,7 +4,8 @@ The human recommendation layer for video. Plan: `../Vouch_Detailed_Plan.md`.
 
 ## Run it
 
-Sign-in is Supabase Auth only: GitHub by default, Google optional (see AUTH_PROVIDERS). There are no demo accounts.
+Sign-in is Supabase Auth only: GitHub and an email link by default, Google optional (see AUTH_PROVIDERS).
+There are no demo accounts, and nobody needs one to browse, save, rate or hide watched videos.
 
 ```bash
 npm install
@@ -24,10 +25,25 @@ accounts that can no longer sign in (the demo curators); run it without `--dry-r
 server stopped, to back up `.data/pglite` and remove them. On Windows, `remove-demo-accounts.cmd`
 does the stop, removal and restart in one step.
 
+## What people see now (critique, Nov 2026)
+
+Home is Discover: long videos Hacker News commenters recommended, each crediting the commenter and
+linking the comment, with topic, length and sort filters. Save for later, Mark as watched, Hide
+watched and signed-out Worth it live in the browser (localStorage); `/saved` lists them.
+
+The social layer (Circle, People, follows, trust labels, Taste Passport, onboarding, list follows,
+topic/keyword/length rules, public vouching) is hidden until there are real curators. Turn it back
+on with `NEXT_PUBLIC_VOUCH_SOCIAL=1` at build time. Admins can still vouch.
+
+The note experiment: a first-party `vouch_aid` cookie gives each browser a random ID. With
+`VOUCH_NOTE_EXPERIMENT=1`, half of browsers see cards without the HN comment. `/insights` (admins)
+shows browsers, returning browsers, shown, opened and Worth it per variant; the daily cron deletes
+those events after 90 days.
+
 ## Test it
 
 ```bash
-npm test               # 450 tests: unit + database integration (real Postgres via PGlite)
+npm test               # 479 tests: unit + database integration (real Postgres via PGlite)
 npm run typecheck
 npm run lint
 node --experimental-transform-types scripts/smoke-oembed.mts   # live YouTube check

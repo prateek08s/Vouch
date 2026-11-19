@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { socialEnabled } from "@/lib/flags";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
@@ -12,6 +13,8 @@ import { Facts } from "@/app/components/Facts";
 export const metadata: Metadata = { title: "People" };
 
 export default function PeoplePage() {
+  // Hidden until there are real curators (lib/flags).
+  if (!socialEnabled()) notFound();
   return (
     <>
       <header className="page-head">

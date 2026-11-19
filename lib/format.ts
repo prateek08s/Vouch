@@ -36,3 +36,8 @@ export const TRUST_LABEL: Record<string, string> = {
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/** "Mar 2025", in UTC so server and browser agree. */
+export function monthYear(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+}

@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og";
+import { socialEnabled } from "@/lib/flags";
+import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getDb } from "@/lib/server/db";
 import { LEVEL_LABEL, publicPassport } from "@/lib/passport";
@@ -14,6 +16,8 @@ const PAPER = "#f6f7f9";
 
 /** The share card (plan 7.5). Private Passports get a generic card, so nothing leaks through the image. */
 export default async function Image({ params }: { params: Promise<{ username: string }> }) {
+  // Hidden until there are real curators (lib/flags).
+  if (!socialEnabled()) notFound();
   await connection();
   const { username } = await params;
   const p = await publicPassport(await getDb(), decodeURIComponent(username));

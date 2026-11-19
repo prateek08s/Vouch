@@ -2,13 +2,35 @@ import { expect, test } from "@playwright/test";
 
 // Relies on scripts/seed-e2e.mts. Signed-out journey only: OAuth can't run in CI.
 
-test("landing shows a real vouch and leads to sign-in", async ({ page }) => {
+test("home is Discover: what Vouch is, then real picks, with no sign-up first", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Videos worth your time");
-  await expect(page.getByLabel("An example vouch")).toContainText("E2E Curator");
-  await page.getByRole("link", { name: "Build your Circle" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Long videos Hacker News recommends");
+  await expect(page.getByRole("heading", { name: "But what is a neural network?" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Filter by length" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Build your Circle" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/signin$/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("signed out, a viewer can rate, save and hide what they watched", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "But what is a neural network?" }).first().click();
+  await expect(page).toHaveURL(/\/watch\//);
+  await page.getByRole("button", { name: "Worth it", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Marked Worth it");
+  await page.getByRole("button", { name: "Save for later" }).click();
+  await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+
+  await page.goto("/saved");
+  await expect(page.getByRole("link", { name: "But what is a neural network?" })).toBeVisible();
+  await expect(page.getByText("Watched").first()).toBeVisible();
+
+  await page.goto("/");
+  await page.getByLabel(/Hide watched/).check();
+  await expect(page.getByRole("heading", { name: "But what is a neural network?" })).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "But what is a neural network?" })).toBeHidden();
 });
 
 test("Discover lists picks, filters by topic, and opens a public watch page", async ({ page }) => {
@@ -23,7 +45,7 @@ test("Discover lists picks, filters by topic, and opens a public watch page", as
   await expect(page).toHaveURL(/\/watch\//);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Fourier Transform");
   await expect(page.locator("iframe[src*='youtube-nocookie.com']")).toHaveCount(1);
-  await expect(page.getByRole("link", { name: "Sign in to rate" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Worth it", exact: true })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "About this pick" }).getByText("The winding machine makes it obvious.")).toBeVisible();
 });
 
@@ -37,11 +59,18 @@ test("public curator page and legal pages render", async ({ page }) => {
   }
 });
 
-test("signed-in pages send visitors to sign-in", async ({ page }) => {
-  for (const path of ["/people", "/lists", "/vouch", "/settings/profile"]) {
+test("signed-in pages send visitors to sign-in; hidden social pages are not found", async ({ page }) => {
+  for (const path of ["/vouch", "/settings/profile"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/signin/);
   }
+  for (const path of ["/people", "/passport", "/onboarding"]) {
+    await page.goto(path);
+    await expect(page.getByText("This page could not be found.")).toBeVisible();
+  }
+  await page.goto("/lists");
+  await expect(page.getByRole("heading", { level: 1, name: "Collections" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "E2E Starter List" })).toBeVisible();
 });
 
 test("security headers are set", async ({ request }) => {

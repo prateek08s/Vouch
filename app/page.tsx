@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -6,10 +5,11 @@ import { circleFeed, logImpressions } from "@/lib/feed/circle";
 import { recordImpressions } from "@/lib/analytics";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
-import { formatDuration, greeting, initials, plural } from "@/lib/format";
-import { publicPicks } from "@/lib/public";
+import { formatDuration, greeting, monthYear, plural } from "@/lib/format";
 import { discoverPicks } from "@/lib/public/discover";
 import { RecommendationCard } from "./components/RecommendationCard";
+import { DiscoverFeed } from "./components/DiscoverFeed";
+import { socialEnabled } from "@/lib/flags";
 import { PublicPicks } from "./components/PublicPicks";
 import { Facts } from "./components/Facts";
 import { deleteRuleAction } from "@/app/settings/rules/actions";
@@ -20,7 +20,7 @@ import { upNextFromLists, type UpNext } from "@/lib/lists";
 
 export default async function CirclePage({ searchParams }: PageProps<"/">) {
   return (
-    <Suspense fallback={<p className="muted">Finding what your circle vouched for…</p>}>
+    <Suspense fallback={<p className="muted">Loading picks…</p>}>
       <Circle searchParams={searchParams} />
     </Suspense>
   );
@@ -28,7 +28,10 @@ export default async function CirclePage({ searchParams }: PageProps<"/">) {
 
 async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchParams"] }) {
   const user = await getCurrentUser();
-  if (!user) return <Landing deleted={(await searchParams).deleted === "1"} />;
+  // Until there are real curators to follow, everyone's home is Discover (critique, changes 1 and 5).
+  if (!user || !socialEnabled()) {
+    return <Home signedIn={Boolean(user)} searchParams={searchParams} />;
+  }
 
   // New people pick topics and first follows before their (otherwise empty) Circle.
   if (!user.onboarded_at) redirect("/onboarding");
@@ -126,60 +129,41 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
   );
 }
 
-/** Signed out: say what Vouch is, and show a real vouch rather than describing one. */
-async function Landing({ deleted = false }: { deleted?: boolean }) {
-  const picks = await publicPicks(await getDb());
-  const specimen = picks.find((p) => p.note) ?? picks[0];
-  const rest = picks.filter((p) => p !== specimen).slice(0, 6);
+/** Home: what Vouch is, in one line, then the picks themselves. Nothing to sign up for first. */
+async function Home({ signedIn, searchParams }: { signedIn: boolean; searchParams: PageProps<"/">["searchParams"] }) {
+  const sp = await searchParams;
+  const stats = await catalogStats(await getDb());
   return (
     <>
-      {deleted && <div className="notice" role="status"><span>Your account and everything in it was deleted.</span></div>}
-      <section className="landing" aria-labelledby="landing-h">
-        <div>
-          <h1 id="landing-h">Videos worth your time, picked by people you trust.</h1>
+      {sp.deleted === "1" && <div className="notice" role="status"><span>Your account and everything in it was deleted.</span></div>}
+      {signedIn ? (
+        <header className="page-head">
+          <h1>Discover</h1>
+          <p>Long videos Hacker News commenters recommended, each with the comment that recommended it.</p>
+        </header>
+      ) : (
+        <section className="hero" aria-labelledby="hero-h">
+          <h1 id="hero-h">Long videos Hacker News recommends, with the comment that recommended them.</h1>
           <p className="lede">
-            Vouch replaces the recommendation algorithm with people. Follow curators whose taste you trust, and every
-            video in your feed tells you who picked it and why.
+            {stats.videos.toLocaleString("en-US")} talks, lectures and documentaries that HN commenters said were worth
+            watching{stats.latest ? `, up to ${monthYear(stats.latest)}` : ""}. No account needed: save, rate and hide
+            what you&apos;ve watched, right here.
           </p>
-          <div className="actions">
-            <Link className="button large" href="/signin">Build your Circle</Link>
-            <Link className="button ghost large" href="/discover">Browse picks</Link>
-          </div>
-          <ul className="landing-points">
-            <li>Every pick names the person who vouched for it.</li>
-            <li>Your rules always win. Block a channel and it never comes back.</li>
-            <li>Your feed ends. No endless scroll, no autoplay.</li>
-          </ul>
-        </div>
-        {specimen && (
-          <figure className="specimen" aria-label="An example vouch">
-            <div className="byline">
-              <span className="avatar" aria-hidden="true">{initials(specimen.curator)}</span>
-              <span className="byline-text">
-                <strong>Vouched by {specimen.curator}</strong>
-                <span>@{specimen.username}</span>
-              </span>
-            </div>
-            {specimen.note && <blockquote className="note">{specimen.note}</blockquote>}
-            <a className="frame" href={specimen.canonical_url} target="_blank" rel="noreferrer">
-              {specimen.thumbnail_url ? <Image unoptimized src={specimen.thumbnail_url} alt="" fill sizes="(max-width: 52rem) 100vw, 32rem" priority /> : <span className="placeholder">Vouch</span>}
-            </a>
-            <strong className="rec-title">{specimen.title}</strong>
-            <figcaption className="specimen-why">
-              In your Circle, every pick says why it’s there: <b>who vouched for it</b>, and how often their picks were worth it to you.
-            </figcaption>
-          </figure>
-        )}
-      </section>
-      {rest.length > 0 && (
-        <section className="section" aria-labelledby="recent-h">
-          <h2 id="recent-h" className="section-title">Recently vouched</h2>
-          <p className="section-note">A sample of public picks. Sign in to see the ones from people you follow.</p>
-          <PublicPicks picks={rest} />
         </section>
       )}
+      <Suspense fallback={<p className="muted">Loading picks…</p>}>
+        <DiscoverFeed searchParams={searchParams} base="/" />
+      </Suspense>
     </>
   );
+}
+
+async function catalogStats(db: Awaited<ReturnType<typeof getDb>>) {
+  const [row] = await db.query<{ videos: number; latest: Date | null }>(
+    `select (select count(distinct v.resource_id)::int from vouches v where v.hidden_at is null) as videos,
+            (select max(posted_at) from hn_mentions) as latest`,
+  );
+  return row;
 }
 
 /** Plan flow C: confirm the new rule right where the item disappeared, with an undo. */

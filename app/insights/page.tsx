@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { impressionReport } from "@/lib/analytics";
+import { experimentOn, experimentReport, type VariantReport } from "@/lib/experiment";
 
 export const metadata: Metadata = { title: "Insights" };
 
@@ -45,15 +46,70 @@ async function Report() {
   if (!user) redirect("/signin");
   // Admins only in production; anyone signed in during development.
   if (!user.is_admin && process.env.NODE_ENV === "production") notFound();
-  const rows = await impressionReport(await getDb());
-  if (!rows.length) {
-    return (
-      <div className="empty">
-        <strong>Nothing has been shown yet.</strong>
-        <p>Open the Circle, a list or search to start collecting.</p>
+  const db = await getDb();
+  const [rows, experiment] = await Promise.all([impressionReport(db), experimentReport(db)]);
+  return (
+    <>
+      <Experiment rows={experiment} />
+      <h2 className="section-title">Signed-in recommendations</h2>
+      {rows.length ? <SignedIn rows={rows} /> : (
+        <div className="empty">
+          <strong>Nothing has been shown to signed-in people yet.</strong>
+          <p>Lists and search start collecting as soon as someone signs in.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * The note experiment (critique): visitors by browser, what they saw and did, per variant.
+ * Success needs a higher open rate with the note and a 40% return rate.
+ */
+function Experiment({ rows }: { rows: VariantReport[] }) {
+  const label = { note: "With the HN comment", nonote: "Without it" } as const;
+  return (
+    <section className="section" aria-labelledby="exp-h">
+      <h2 id="exp-h" className="section-title">Browsers (signed in or not)</h2>
+      <p className="section-note">
+        {experimentOn()
+          ? "The note experiment is running: half of browsers see picks without the Hacker News comment."
+          : "The note experiment is off (VOUCH_NOTE_EXPERIMENT), so every browser sees the comment."}{" "}
+        Returning means active on two or more days. Events are deleted after 90 days.
+      </p>
+      <div className="table-wrap">
+        <table className="insights">
+          <thead>
+            <tr>
+              <th scope="col">Cards</th>
+              <th scope="col">Browsers</th>
+              <th scope="col">Returning</th>
+              <th scope="col">Shown</th>
+              <th scope="col">Opened</th>
+              <th scope="col">Rated</th>
+              <th scope="col">Worth it</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.variant}>
+                <td>{label[r.variant]}</td>
+                <td className="num">{r.visitors}</td>
+                <td className="num">{r.returning} <small>({pct(r.returning, r.visitors)})</small></td>
+                <td className="num">{r.shown}</td>
+                <td className="num">{r.opened} <small>({pct(r.opened, r.shown)})</small></td>
+                <td className="num">{r.worth + r.notWorth}</td>
+                <td className="num">{r.worth} <small>({pct(r.worth, r.worth + r.notWorth)} of rated)</small></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    );
-  }
+    </section>
+  );
+}
+
+function SignedIn({ rows }: { rows: Awaited<ReturnType<typeof impressionReport>> }) {
   return (
     <div className="table-wrap">
       <table className="insights">

@@ -8,6 +8,8 @@ import { rate, recordOpen } from "@/lib/ratings";
 import { createRule } from "@/lib/rules";
 import { UUID, str } from "@/lib/server/form";
 import { isReason, reportVouch } from "@/lib/moderation";
+import { recordAnonRating } from "@/lib/experiment";
+import { anonContext } from "@/lib/experiment/server";
 
 export async function rateAction(formData: FormData) {
   const user = await getCurrentUser();
@@ -53,4 +55,14 @@ export async function reportAction(formData: FormData) {
   if (!(await allow(db, "write", user.id))) return;
   await reportVouch(db, user.id, vouchId, reason, str(formData, "details"));
   refresh();
+}
+
+/** A signed-out Worth it / Not worth it, counted against this browser's anonymous ID. */
+export async function anonRateAction(resourceId: string, worth: boolean) {
+  if (!UUID.test(resourceId) || typeof worth !== "boolean") return;
+  const anon = await anonContext();
+  if (!anon) return;
+  const db = await getDb();
+  if (!(await allow(db, "write", `anon:${anon.anonId}`))) return;
+  await recordAnonRating(db, anon.anonId, anon.variant, resourceId, worth);
 }
