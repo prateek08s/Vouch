@@ -1,0 +1,94 @@
+name: Refresh Hacker News picks
+
+# Weekly: find new YouTube recommendations on Hacker News, classify them, commit the verdicts
+# to data/hn/verdicts, and import them into the production database when one is configured.
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   ANTHROPIC_API_KEY        classify with the Claude API (a full year costs about $1), or
+#   CLAUDE_CODE_OAUTH_TOKEN  classify through Claude Code on your plan (from `claude setup-token`)
+#   YOUTUBE_API_KEY          optional: video lengths for new picks (without it there are none)
+#   DATABASE_URL             optional: production Postgres; without it the import step is skipped
+on:
+  schedule:
+    - cron: "41 21 * * 0" # Sundays 21:41 UTC (Monday 03:11 in India)
+  workflow_dispatch:
+    inputs:
+      months:
+        description: "Months to process, e.g. 2026-01,2026-02 (blank = whatever is pending)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hn-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: pip install pyarrow
+
+      - name: Choose months
+        id: months
+        run: |
+          months="${{ inputs.months }}"
+          if [ -z "$months" ]; then months=$(npx tsx scripts/hn/pending-months.mts --data-dir data/hn); fi
+          echo "Processing: $months"
+          echo "list=$months" >> "$GITHUB_OUTPUT"
+
+      - name: Find comments that link YouTube
+        run: >
+          python -I scripts/hn/extract_candidates.py --month-list "${{ steps.months.outputs.list }}"
+          --data-dir data/hn --refresh --skip-missing
+
+      - name: Check for a classifier
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then echo "VIA=api" >> "$GITHUB_ENV";
+          elif [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then echo "VIA=claude-code" >> "$GITHUB_ENV"; npm install -g @anthropic-ai/claude-code;
+          else echo "::error::Add ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN as a repository secret."; exit 1; fi
+
+      - name: Classify new comments
+        run: |
+          months=""
+          for m in $(echo "${{ steps.months.outputs.list }}" | tr ',' ' '); do
+            if [ -f "data/hn/candidates/$m.jsonl" ]; then months="$months,$m"; fi
+          done
+          months="${months#,}"
+          if [ -z "$months" ]; then echo "Nothing published to classify."; exit 0; fi
+          npx tsx scripts/hn/classify.mts --months "$months" --data-dir data/hn --via "$VIA"
+
+      # Runs even if classification stopped part-way, so finished verdicts aren't lost.
+      - name: Commit new verdicts
+        if: ${{ !cancelled() }}
+        run: |
+          git add data/hn/verdicts
+          if git diff --cached --quiet; then echo "No new verdicts."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Hacker News picks: verdicts for ${{ steps.months.outputs.list }}"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Import into production
+        if: ${{ env.DATABASE_URL != '' }}
+        run: |
+          npm run db:migrate
+          npx tsx scripts/hn/import.mts --all --concurrency 4

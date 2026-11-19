@@ -1,6 +1,7 @@
 // Steps 3 and 4 of the Hacker News import: aggregate verdicts and write them into Vouch.
 //
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --year 2025
+//   npx tsx --env-file=.env.local scripts/hn/import.mts --all        # every year with verdicts
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --months 2025-01 --dry-run
 //
 // Reads verdicts from .data/hn/verdicts/ (your own classify runs) or, failing that, the committed
@@ -9,7 +10,7 @@
 // local PGlite directory (VOUCH_DATA_DIR, default .data/pglite). For PGlite, stop the dev
 // server first: it allows one process.
 // YOUTUBE_API_KEY (in .env.local) gives video lengths; without it, oEmbed is used.
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -19,6 +20,7 @@ import { postgresDb } from "@/lib/db/postgres";
 import { aggregate, planLists, type TopicInfo } from "@/lib/hn/aggregate";
 import type { CommentVerdict } from "@/lib/hn/classify";
 import { importHn } from "@/lib/hn/import";
+import { monthEnded } from "@/lib/hn/months";
 import { defaultMetadataProvider } from "@/lib/youtube/metadata";
 
 const { values: args } = parseArgs({
@@ -28,6 +30,7 @@ const { values: args } = parseArgs({
     "dry-run": { type: "boolean", default: false },
     concurrency: { type: "string", default: "6" },
     "data-dir": { type: "string" },
+    all: { type: "boolean", default: false },
   },
 });
 
@@ -38,11 +41,19 @@ const verdictFile = (m: string) =>
     .map((d) => path.join(d, "verdicts", `${m}.jsonl`))
     .find((f) => existsSync(f));
 
-const asked = args.months?.split(",").map((m) => m.trim()) ??
+const verdictDirs = [args["data-dir"], path.join(".data", "hn"), path.join("data", "hn")]
+  .filter((d): d is string => Boolean(d))
+  .map((d) => path.join(d, "verdicts"))
+  .filter((d) => existsSync(d));
+const yearsWithVerdicts = [...new Set(verdictDirs.flatMap((d) =>
+  readdirSync(d).filter((f) => /^\d{4}-\d{2}\.jsonl$/.test(f)).map((f) => f.slice(0, 4))))].sort();
+
+const asked = (args.all ? yearsWithVerdicts.join(",") || null : null)?.split(",").map((y) => `${y}-01`) ??
+  args.months?.split(",").map((m) => m.trim()) ??
   args.year?.split(",").flatMap((y) => Array.from({ length: 12 }, (_, i) => `${y.trim()}-${String(i + 1).padStart(2, "0")}`)) ??
   null;
 if (!asked?.length || asked.some((m) => !/^\d{4}-\d{2}$/.test(m))) {
-  console.error("Pass --year YYYY[,YYYY...] or --months YYYY-MM[,YYYY-MM...]");
+  console.error("Pass --all, --year YYYY[,YYYY...] or --months YYYY-MM[,YYYY-MM...]");
   process.exit(2);
 }
 // The Hacker News lists are rebuilt from what is imported, so importing one month alone would
@@ -50,7 +61,8 @@ if (!asked?.length || asked.some((m) => !/^\d{4}-\d{2}$/.test(m))) {
 // that is already in is cheap (fresh metadata is skipped) and keeps the lists complete.
 const years = [...new Set(asked.map((m) => m.slice(0, 4)))].sort();
 const months = years.flatMap((y) => Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`));
-const missing = months.filter((m) => !verdictFile(m) && new Date(`${m}-01T00:00:00Z`) < new Date());
+// A month still in progress may have no verdicts yet; only finished months must be complete.
+const missing = months.filter((m) => !verdictFile(m) && monthEnded(m, new Date()));
 if (missing.length) {
   console.error(`No verdicts for ${missing.join(", ")}. Run scripts/hn/classify.mts for them first; nothing was imported.`);
   process.exit(1);

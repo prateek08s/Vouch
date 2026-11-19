@@ -57,3 +57,8 @@ youtubeapi.txt
 # Playwright
 /test-results/
 /playwright-report/
+
+# Hacker News pipeline working files (raw comment text; only verdicts are committed)
+/data/hn/candidates/
+/data/hn/raw/
+__pycache__/

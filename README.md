@@ -98,6 +98,23 @@ from the daily limit and from analytics), one Vouch per video, a link to every r
 comment on the watch page, and public lists: "Hacker News Vouched" plus up to 20 topic lists.
 Quotes are kept only if they appear word for word in the comment.
 
+### Weekly refresh (scheduled)
+
+`.github/workflows/hn-refresh.yml` runs every Sunday at 21:41 UTC (Monday 03:11 IST), and on demand
+from the Actions tab ("Run workflow", optionally with months such as `2026-01,2026-02`). It:
+
+1. works out the months to process (`scripts/hn/pending-months.mts`): every finished month since
+   2025-01 without committed verdicts, plus last month and this month for late comments;
+2. downloads and filters them (`extract_candidates.py --month-list … --refresh --skip-missing`;
+   a month the dataset hasn't published yet is skipped and picked up next week);
+3. classifies only comments that have no verdict yet, and commits `data/hn/verdicts/` to `main`;
+4. imports every year into production when the `DATABASE_URL` secret is set (`import.mts --all`).
+
+Repository secrets: `ANTHROPIC_API_KEY` (about $1 a year of comments) or `CLAUDE_CODE_OAUTH_TOKEN`
+(from `claude setup-token`, uses your plan); optional `YOUTUBE_API_KEY` for video lengths and
+`DATABASE_URL` for production. Locally, after `git pull`, run `npm run db:seed` with the dev server
+stopped to import every year that has verdicts.
+
 ## Design decisions worth knowing
 
 - **Trust is derived, not incremented.** Each edge is recomputed from rating counts, so

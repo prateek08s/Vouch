@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "typecheck": "next typegen && tsc --noEmit",
     "db:migrate": "tsx --env-file-if-exists=.env.local scripts/migrate.mts",
-    "db:seed": "tsx --env-file-if-exists=.env.local scripts/hn/import.mts --year 2025"
+    "db:seed": "tsx --env-file-if-exists=.env.local scripts/hn/import.mts --all"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",
