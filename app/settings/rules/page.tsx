@@ -4,9 +4,10 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { listRules } from "@/lib/rules";
+import { channelNames } from "@/lib/rules/channels";
 import { describeRule, sortRules } from "@/lib/rules/describe";
 import { groupedTopics, loadTopics } from "@/lib/topics";
-import { deleteRuleAction } from "@/app/actions";
+import { deleteRuleAction } from "@/app/settings/rules/actions";
 import { RuleControls } from "./RuleControls";
 
 export const metadata: Metadata = { title: "Rules" };
@@ -41,15 +42,9 @@ async function Rules() {
   const [rules, topics] = await Promise.all([listRules(db, user.id), loadTopics(db)]);
 
   const channelIds = rules.filter((r) => r.kind === "channel").map((r) => r.value);
-  const channels = channelIds.length
-    ? await db.query<{ id: string; name: string }>(
-        `select distinct on (creator_external_id) creator_external_id as id, creator_name as name
-         from resources where creator_external_id = any($1::text[]) and creator_name is not null`,
-        [channelIds],
-      )
-    : [];
+  const channels = await channelNames(db, channelIds);
   const lookups = {
-    channelNames: new Map(channels.map((c) => [c.id, c.name])),
+    channelNames: channels,
     topicNames: new Map([...topics.bySlug.values()].map((t) => [t.slug, t.name])),
   };
   const active = sortRules(rules);

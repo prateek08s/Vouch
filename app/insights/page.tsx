@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Insights" };
 /**
  * Totals for the MVP hypotheses (plan 26): for each place a recommendation appeared and each
  * "Why this?" explanation, how often it was opened and rated Worth It. Totals only, never
- * per person. Development only until there is real admin access.
+ * per person. Admins only in production (users.is_admin).
  */
 export default function InsightsPage() {
   return (
@@ -41,9 +41,10 @@ const EXPLANATION: Record<string, string> = {
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "–");
 
 async function Report() {
-  if (process.env.NODE_ENV === "production") notFound();
   const user = await getCurrentUser();
   if (!user) redirect("/signin");
+  // Admins only in production; anyone signed in during development.
+  if (!user.is_admin && process.env.NODE_ENV === "production") notFound();
   const rows = await impressionReport(await getDb());
   if (!rows.length) {
     return (

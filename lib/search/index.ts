@@ -97,12 +97,12 @@ export async function search(
        from resources r
        where r.metadata_status <> 'unavailable'
          and ($2::text is null or r.search_doc @@ to_tsquery('english', $2))
-         and exists (select 1 from vouches v where v.resource_id = r.id)
+         and exists (select 1 from vouches v where v.resource_id = r.id and v.hidden_at is null)
          and ($3::text is null or exists (
-               select 1 from vouches v join users u on u.id = v.user_id where v.resource_id = r.id and u.username = $3))
+               select 1 from vouches v join users u on u.id = v.user_id where v.resource_id = r.id and v.hidden_at is null and u.username = $3))
          and ($5::int[] is null or exists (
                select 1 from vouches v join vouch_topics vt on vt.vouch_id = v.id
-               where v.resource_id = r.id and vt.topic_id = any($5::int[])))
+               where v.resource_id = r.id and v.hidden_at is null and vt.topic_id = any($5::int[])))
        order by tr desc, r.id
        limit $6
      ),
@@ -113,7 +113,7 @@ export async function search(
               array_agg(distinct u.display_name) filter (where f.followee_id is not null) as circle_vouchers,
               array_agg(distinct vt.topic_id) filter (where vt.topic_id is not null) as topic_ids
        from hits h
-       join vouches v on v.resource_id = h.id
+       join vouches v on v.resource_id = h.id and v.hidden_at is null
        join users u on u.id = v.user_id
        left join follows f on f.follower_id = $1 and f.followee_id = v.user_id
        left join vouch_topics vt on vt.vouch_id = v.id
@@ -128,7 +128,7 @@ export async function search(
      left join lateral (
        select v.note, u.display_name from vouches v join users u on u.id = v.user_id
        left join follows f on f.follower_id = $1 and f.followee_id = v.user_id
-       where v.resource_id = d.id and v.note is not null
+       where v.resource_id = d.id and v.note is not null and v.hidden_at is null
        order by (f.followee_id is not null) desc, v.created_at desc limit 1
      ) n on true
      where (not $4::boolean or d.circle_count > 0)

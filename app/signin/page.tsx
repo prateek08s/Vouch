@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { authConfigured, authProviders } from "@/lib/auth/config";
-import { oauthSignIn } from "@/app/actions";
+import { oauthSignIn } from "@/app/auth/actions";
 
 export const metadata: Metadata = { title: "Sign in" };
 

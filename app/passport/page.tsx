@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { ownPassport } from "@/lib/passport";
-import { passportSettingsAction } from "@/app/actions";
+import { passportSettingsAction } from "@/app/passport/actions";
 import { PassportView } from "./PassportView";
 
 export const metadata: Metadata = { title: "Taste Passport" };

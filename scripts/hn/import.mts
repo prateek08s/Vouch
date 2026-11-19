@@ -3,7 +3,8 @@
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --year 2025
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --months 2025-01 --dry-run
 //
-// Reads .data/hn/verdicts/*.jsonl and writes to the same database as `npm run dev`:
+// Reads verdicts from .data/hn/verdicts/ (your own classify runs) or, failing that, the committed
+// data/hn/verdicts/, and writes to the same database as `npm run dev`:
 // Postgres when DATABASE_URL is set (run scripts/migrate.mts against it first), otherwise the
 // local PGlite directory (VOUCH_DATA_DIR, default .data/pglite). For PGlite, stop the dev
 // server first: it allows one process.
@@ -26,27 +27,45 @@ const { values: args } = parseArgs({
     year: { type: "string" },
     "dry-run": { type: "boolean", default: false },
     concurrency: { type: "string", default: "6" },
-    "data-dir": { type: "string", default: path.join(".data", "hn") },
+    "data-dir": { type: "string" },
   },
 });
 
-const months = args.months?.split(",").map((m) => m.trim()) ??
-  (args.year ? Array.from({ length: 12 }, (_, i) => `${args.year}-${String(i + 1).padStart(2, "0")}`) : null);
-if (!months?.length || months.some((m) => !/^\d{4}-\d{2}$/.test(m))) {
-  console.error("Pass --months YYYY-MM[,YYYY-MM...] or --year YYYY");
+// Where a month's verdicts live: an explicit --data-dir, else local runs, else the committed copy.
+const verdictFile = (m: string) =>
+  [args["data-dir"], path.join(".data", "hn"), path.join("data", "hn")]
+    .filter((d): d is string => Boolean(d))
+    .map((d) => path.join(d, "verdicts", `${m}.jsonl`))
+    .find((f) => existsSync(f));
+
+const asked = args.months?.split(",").map((m) => m.trim()) ??
+  args.year?.split(",").flatMap((y) => Array.from({ length: 12 }, (_, i) => `${y.trim()}-${String(i + 1).padStart(2, "0")}`)) ??
+  null;
+if (!asked?.length || asked.some((m) => !/^\d{4}-\d{2}$/.test(m))) {
+  console.error("Pass --year YYYY[,YYYY...] or --months YYYY-MM[,YYYY-MM...]");
   process.exit(2);
+}
+// The Hacker News lists are rebuilt from what is imported, so importing one month alone would
+// replace a full year's lists with that month. Always import whole years: re-importing a month
+// that is already in is cheap (fresh metadata is skipped) and keeps the lists complete.
+const years = [...new Set(asked.map((m) => m.slice(0, 4)))].sort();
+const months = years.flatMap((y) => Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`));
+const missing = months.filter((m) => !verdictFile(m) && new Date(`${m}-01T00:00:00Z`) < new Date());
+if (missing.length) {
+  console.error(`No verdicts for ${missing.join(", ")}. Run scripts/hn/classify.mts for them first; nothing was imported.`);
+  process.exit(1);
 }
 
 const verdicts: CommentVerdict[] = [];
 for (const m of months) {
-  const file = path.join(args["data-dir"]!, "verdicts", `${m}.jsonl`);
-  if (!existsSync(file)) {
-    console.warn(`${m}: no verdicts yet, run scripts/hn/classify.mts first`);
-    continue;
-  }
+  const file = verdictFile(m);
+  if (!file) continue; // a month still in the future
   for (const line of (await readFile(file, "utf8")).split("\n")) if (line) verdicts.push(JSON.parse(line));
 }
-const years = [...new Set(months.map((m) => m.slice(0, 4)))];
+if (!verdicts.length) {
+  console.error(`No verdicts found for ${years.join(", ")}; nothing was imported.`);
+  process.exit(1);
+}
 const period = years.length === 1 ? years[0] : `${years[0]} to ${years.at(-1)}`;
 
 const aggs = aggregate(verdicts);

@@ -6,7 +6,7 @@ import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { listsFor, type ListSummary } from "@/lib/lists";
 import { plural } from "@/lib/format";
-import { followListAction } from "@/app/actions";
+import { followListAction } from "@/app/lists/actions";
 import { Facts } from "@/app/components/Facts";
 import { CreateListForm } from "./ListForms";
 

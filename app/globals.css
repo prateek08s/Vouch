@@ -265,6 +265,27 @@ h1 { font-size: clamp(var(--t-3xl), 3.4vw, var(--t-4xl)); line-height: 1.12; let
 .section-title + .notes { margin-top: 1rem; }
 .notes .note { font-size: var(--t-lg); margin-left: 0.42em; }
 .hn { margin-top: 3.5rem; padding-top: 2rem; border-top: 1px solid var(--rule); max-width: 52rem; }
+/* Report a note: a quiet disclosure under each note. */
+.report { font-size: var(--t-sm); color: var(--muted); }
+.report summary { cursor: pointer; width: fit-content; text-decoration: underline; text-underline-offset: 2px; }
+.report summary:hover { color: var(--miss); }
+.report form { display: grid; gap: 0.6rem; margin-top: 0.6rem; padding: 0.8rem; border: 1px solid var(--rule); border-radius: var(--r-sm); background: var(--surface); color: var(--ink-2); }
+.report fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.report legend { font-weight: 600; margin-bottom: 0.3rem; color: var(--ink); }
+.report label { display: grid; gap: 0.25rem; }
+.report fieldset label { display: flex; gap: 0.45rem; align-items: center; }
+.report textarea { font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); resize: vertical; }
+.report .button { justify-self: start; }
+.report-done { font-size: var(--t-sm); color: var(--muted); margin: 0; }
+
+/* Admin review queue. */
+.queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.25rem; }
+.queue > li { display: grid; gap: 0.6rem; padding: 1rem 1.1rem; border: 1px solid var(--rule); border-radius: var(--r-md); background: var(--surface); }
+.queue .meta { font-size: var(--t-sm); color: var(--muted); margin: 0; }
+.queue .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.queue .actions form { margin: 0; }
+.button.danger { background: var(--miss); border-color: var(--miss); color: #fff; }
+
 .hn .notes { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 2rem 2.5rem; margin-top: 1.25rem; }
 .back { margin-top: 3rem; font-size: var(--t-sm); }
 @media (max-width: 60rem) {

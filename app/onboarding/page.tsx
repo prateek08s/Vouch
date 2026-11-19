@@ -16,7 +16,7 @@ import {
   userTopicSlugs,
   type OnboardingError,
 } from "@/lib/onboarding";
-import { onboardingChoicesAction, onboardingFinishAction, onboardingTopicsAction } from "@/app/actions";
+import { onboardingChoicesAction, onboardingFinishAction, onboardingTopicsAction } from "@/app/onboarding/actions";
 import { Facts } from "@/app/components/Facts";
 
 export const metadata: Metadata = { title: "Welcome" };

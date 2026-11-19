@@ -1,15 +1,28 @@
 import type { Metadata } from "next";
-import { Newsreader, Schibsted_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getCurrentUser } from "@/lib/server/session";
-import { signOutAction } from "./actions";
+import { signOutAction } from "@/app/auth/actions";
 import { NavLinks, StaticNavLinks } from "./components/NavLink";
 import { Avatar } from "./components/Avatar";
 import "./globals.css";
 
-const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const serif = Newsreader({ subsets: ["latin"], style: ["normal", "italic"], variable: "--font-serif", display: "swap" });
+// Self-hosted (SIL Open Font License, app/fonts/OFL-*.txt): no request to Google Fonts at build or run time.
+const sans = localFont({
+  src: "./fonts/schibsted-grotesk-latin-wght-normal.woff2",
+  weight: "400 900",
+  variable: "--font-sans",
+  display: "swap",
+});
+const serif = localFont({
+  src: [
+    { path: "./fonts/newsreader-latin-opsz-normal.woff2", weight: "200 800", style: "normal" },
+    { path: "./fonts/newsreader-latin-opsz-italic.woff2", weight: "200 800", style: "italic" },
+  ],
+  variable: "--font-serif",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: { default: "Vouch", template: "%s | Vouch" },
@@ -27,6 +40,7 @@ async function UserNav() {
   }
   return (
     <div className="nav-user">
+      {user.is_admin && <Link href="/admin" className="button quiet small">Reports</Link>}
       <Link href="/vouch" className="button">Vouch for a video</Link>
       <Link href="/passport" className="who" title="Your Taste Passport">
         <Avatar name={user.display_name} src={user.avatar_url} size="sm" />

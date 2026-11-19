@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useState } from "react";
-import { addToListAction, createListAction, type AddToListState, type ListFormState } from "@/app/actions";
+import { addToListAction, createListAction, type AddToListState, type ListFormState } from "@/app/lists/actions";
 
 function submitWithoutReset(action: (d: FormData) => void) {
   return (e: React.FormEvent<HTMLFormElement>) => {

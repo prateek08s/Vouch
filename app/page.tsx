@@ -12,9 +12,10 @@ import { discoverPicks } from "@/lib/public/discover";
 import { RecommendationCard } from "./components/RecommendationCard";
 import { PublicPicks } from "./components/PublicPicks";
 import { Facts } from "./components/Facts";
-import { deleteRuleAction } from "./actions";
+import { deleteRuleAction } from "@/app/settings/rules/actions";
 import { listRules } from "@/lib/rules";
 import { describeRule } from "@/lib/rules/describe";
+import { channelNames } from "@/lib/rules/channels";
 import { upNextFromLists, type UpNext } from "@/lib/lists";
 
 export default async function CirclePage({ searchParams }: PageProps<"/">) {
@@ -186,11 +187,7 @@ async function BlockedBanner({ userId, ruleId }: { userId: string; ruleId: strin
   const db = await getDb();
   const rule = (await listRules(db, userId)).find((r) => r.id === ruleId);
   if (!rule) return null;
-  const [ch] = await db.query<{ name: string }>(
-    "select creator_name as name from resources where creator_external_id = $1 and creator_name is not null limit 1",
-    [rule.value],
-  );
-  const label = describeRule(rule, { channelNames: new Map(ch ? [[rule.value, ch.name]] : []), topicNames: new Map() });
+  const label = describeRule(rule, { channelNames: await channelNames(db, [rule.value]), topicNames: new Map() });
   return (
     <div className="notice" role="status">
       <span><strong>Rule added:</strong> {label}.</span>

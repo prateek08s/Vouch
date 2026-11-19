@@ -99,7 +99,7 @@ export async function choicePairs(db: Db, userId: string): Promise<[ChoiceOption
      from vouches v
      join users u on u.id = v.user_id
      join resources r on r.id = v.resource_id and r.metadata_status <> 'unavailable'
-     where v.user_id <> $1
+     where v.user_id <> $1 and v.hidden_at is null
        and exists (select 1 from vouch_topics vt where vt.vouch_id = v.id and vt.topic_id = any($2::int[]))
      order by r.id, (v.note is not null) desc, v.created_at desc`,
     [userId, topicIds],
@@ -165,9 +165,9 @@ export async function suggestions(db: Db, userId: string, pickedResourceIds: str
             (select t.name from vouches v2 join vouch_topics vt2 on vt2.vouch_id = v2.id join topics t on t.id = vt2.topic_id
              where v2.user_id = u.id and vt2.topic_id = any($2::int[]) group by t.name order by count(*) desc, t.name limit 1) as top_topic
      from users u
-     join vouches v on v.user_id = u.id
+     join vouches v on v.user_id = u.id and v.hidden_at is null
      left join vouch_topics vt on vt.vouch_id = v.id
-     where u.id <> $1 and not u.is_system
+     where u.id <> $1 and not u.is_system and u.suspended_at is null
      group by u.id`,
     [userId, topicIds, picked],
   );

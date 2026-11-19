@@ -294,3 +294,12 @@ export async function upNextFromLists(db: Db, viewerId: string): Promise<UpNext[
   }
   return out;
 }
+
+/** The viewer's own lists, and whether a video is already in each (the watch page's "Add to list"). */
+export async function myListsFor(db: Db, userId: string, resourceId: string) {
+  return db.query<{ id: string; title: string; has: boolean }>(
+    `select l.id, l.title, exists (select 1 from list_items li where li.list_id = l.id and li.resource_id = $2) as has
+     from lists l where l.owner_id = $1 order by l.created_at desc`,
+    [userId, resourceId],
+  );
+}

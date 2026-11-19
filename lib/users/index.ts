@@ -11,6 +11,10 @@ export type User = {
   trust_tier: TrustTier;
   /** Curator accounts run by Vouch itself (such as "Hacker News"). Nobody signs in as one. */
   is_system: boolean;
+  /** May review reports and see Insights. Set by hand in the database. */
+  is_admin: boolean;
+  /** Set when an admin suspends the account: they are signed out and their vouches are hidden. */
+  suspended_at: Date | null;
   /** Null until the person finishes onboarding (topics, choices, first follows). */
   onboarded_at: Date | null;
   created_at: Date;

@@ -23,6 +23,8 @@ export type WatchData = {
   via: WatchNote | null;
   rating: boolean | null;
   publicVouchCount: number;
+  /** Notes on this page the viewer has already reported. */
+  reported: string[];
 };
 
 /** Stands in for "nobody" in viewer-scoped queries: no follows, ratings or attribution match it. */
@@ -51,7 +53,7 @@ export async function getWatchData(
      from vouches v
      join users u on u.id = v.user_id
      left join vouch_topics vt on vt.vouch_id = v.id
-     where v.resource_id = $1 and v.user_id <> $2
+     where v.resource_id = $1 and v.user_id <> $2 and v.hidden_at is null
      group by v.id, u.id`,
     [resourceId, viewerId],
   );
@@ -97,5 +99,13 @@ export async function getWatchData(
   const shown = new Set(notes.map((n) => n.vouchId));
   const publicVouchCount = all.filter((n) => !systemIds.has(n.vouchId) || shown.has(n.vouchId)).length;
 
-  return { resource, topics, notes, via, rating: rating?.worth_it ?? null, publicVouchCount };
+  const reported = viewer
+    ? (await db.query<{ vouch_id: string }>(
+        `select rp.vouch_id from reports rp join vouches v on v.id = rp.vouch_id
+         where rp.reporter_id = $1 and v.resource_id = $2`,
+        [viewer, resourceId],
+      )).map((r) => r.vouch_id)
+    : [];
+
+  return { resource, topics, notes, via, rating: rating?.worth_it ?? null, publicVouchCount, reported };
 }

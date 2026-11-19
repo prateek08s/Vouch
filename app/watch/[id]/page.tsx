@@ -8,20 +8,14 @@ import { hnMentionsFor } from "@/lib/hn/import";
 import { markOpened } from "@/lib/analytics";
 import { recordOpen } from "@/lib/ratings";
 import { TRUST_LABEL, formatDuration, initials, plural } from "@/lib/format";
-import { blockChannelAction, rateAction } from "@/app/actions";
+import { blockChannelAction, rateAction, reportAction } from "@/app/watch/actions";
+import { REASON_LABEL, REPORT_REASONS } from "@/lib/moderation";
 import { AddToList } from "@/app/lists/ListForms";
+import { myListsFor } from "@/lib/lists";
 import { Facts } from "@/app/components/Facts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The viewer's own lists, and whether this video is already in each. */
-async function listsForWatch(db: Awaited<ReturnType<typeof getDb>>, userId: string, resourceId: string) {
-  return db.query<{ id: string; title: string; has: boolean }>(
-    `select l.id, l.title, exists (select 1 from list_items li where li.list_id = l.id and li.resource_id = $2) as has
-     from lists l where l.owner_id = $1 order by l.created_at desc`,
-    [userId, resourceId],
-  );
-}
 
 export default function WatchPage(props: PageProps<"/watch/[id]">) {
   return (
@@ -48,7 +42,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
     await markOpened(db, user.id, id);
     if (via) await recordOpen(db, { userId: user.id, resourceId: id, vouchId: via });
   }
-  const myLists = user ? await listsForWatch(db, user.id, id) : [];
+  const myLists = user ? await myListsFor(db, user.id, id) : [];
   const hn = await hnMentionsFor(db, id);
   const r = w.resource;
   const runtime = formatDuration(r.duration_s);
@@ -116,11 +110,34 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
                       <span className="avatar" aria-hidden="true">{initials(n.curatorName)}</span>
                       <span className="byline-text">
                         <strong>{n.curatorName}</strong>
-                        <span>{TRUST_LABEL[n.trustLevel]}</span>
+                        {user && <span>{TRUST_LABEL[n.trustLevel]}</span>}
                       </span>
                       {n.isOwnContent && <span className="pill creator">Creator vouch</span>}
                     </div>
                     {n.note && <blockquote className="note">{n.note}</blockquote>}
+                    {user && n.note && (w.reported.includes(n.vouchId) ? (
+                      <p className="report-done">Reported. Thanks, an admin will review it.</p>
+                    ) : (
+                      <details className="report">
+                        <summary>Report</summary>
+                        <form action={reportAction}>
+                          <input type="hidden" name="vouchId" value={n.vouchId} />
+                          <fieldset>
+                            <legend>What&apos;s wrong with this note?</legend>
+                            {REPORT_REASONS.map((r, i) => (
+                              <label key={r}>
+                                <input type="radio" name="reason" value={r} required defaultChecked={i === 0} /> {REASON_LABEL[r]}
+                              </label>
+                            ))}
+                          </fieldset>
+                          <label>
+                            Details (optional)
+                            <textarea name="details" maxLength={500} rows={2} />
+                          </label>
+                          <button type="submit" className="button small">Send report</button>
+                        </form>
+                      </details>
+                    ))}
                   </li>
                 ))}
               </ul>

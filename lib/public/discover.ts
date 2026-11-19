@@ -50,7 +50,7 @@ export async function discoverPicks(
               max(v.created_at) filter (where not u.is_system) as latest_human,
               array_agg(distinct vt.topic_id) filter (where vt.topic_id is not null) as topic_ids
        from resources r
-       join vouches v on v.resource_id = r.id
+       join vouches v on v.resource_id = r.id and v.hidden_at is null
        join users u on u.id = v.user_id
        left join vouch_topics vt on vt.vouch_id = v.id
        where r.metadata_status <> 'unavailable'
@@ -78,7 +78,7 @@ export async function discoverPicks(
      cross join lateral (
        select v.note, u.display_name as curator, u.username
        from vouches v join users u on u.id = v.user_id
-       where v.resource_id = s.id
+       where v.resource_id = s.id and v.hidden_at is null
        order by (v.note is not null) desc, u.is_system, v.created_at desc limit 1
      ) n
      order by s.score desc, s.id`,

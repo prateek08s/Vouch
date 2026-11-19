@@ -5,7 +5,8 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { initials, plural } from "@/lib/format";
-import { followAction } from "@/app/actions";
+import { followAction } from "@/app/people/actions";
+import { listPeople } from "@/lib/users/people";
 import { Facts } from "@/app/components/Facts";
 
 export const metadata: Metadata = { title: "People" };
@@ -29,20 +30,7 @@ async function People() {
   if (!user) redirect("/signin");
   const db = await getDb();
   // Reputation is recommendation quality, not follower count (plan 8). Counts only, never per-user ratings.
-  const people = await db.query<{
-    id: string; username: string; display_name: string; bio: string | null;
-    following: boolean; vouch_count: number; top_topics: string[] | null;
-  }>(
-    `select u.id, u.username, u.display_name, u.bio,
-            exists (select 1 from follows f where f.follower_id = $1 and f.followee_id = u.id) as following,
-            (select count(*)::int from vouches v where v.user_id = u.id) as vouch_count,
-            (select array_agg(name) from (
-               select t.name from vouches v join vouch_topics vt on vt.vouch_id = v.id join topics t on t.id = vt.topic_id
-               where v.user_id = u.id group by t.name order by count(*) desc, t.name limit 3) x) as top_topics
-     from users u where u.id <> $1
-     order by following desc, vouch_count desc, u.display_name`,
-    [user.id],
-  );
+  const people = await listPeople(db, user.id);
 
   if (!people.length) {
     return (

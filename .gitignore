@@ -53,3 +53,7 @@ youtubeapi.txt
 # local database backups
 /.data-*/
 /.next-*/
+
+# Playwright
+/test-results/
+/playwright-report/

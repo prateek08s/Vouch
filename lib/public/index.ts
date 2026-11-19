@@ -12,7 +12,7 @@ export async function publicPicks(db: Db, username?: string): Promise<PublicPick
             u.display_name as curator, u.username
      from vouches v join resources r on r.id = v.resource_id join users u on u.id = v.user_id
      where r.metadata_status <> 'unavailable' and ($1::text is null or u.username = $1)
-       and v.id = (select v2.id from vouches v2 where v2.resource_id = r.id
+       and v.id = (select v2.id from vouches v2 where v2.resource_id = r.id and v2.hidden_at is null
           and ($1::text is null or v2.user_id = u.id) order by v2.created_at desc, v2.id limit 1)
      order by v.created_at desc, v.id limit 12`,
     [username ?? null],
@@ -21,7 +21,7 @@ export async function publicPicks(db: Db, username?: string): Promise<PublicPick
 
 export async function publicProfile(db: Db, username: string) {
   const [profile] = await db.query<{ username: string; display_name: string; bio: string | null }>(
-    "select username, display_name, bio from users where username = $1", [username],
+    "select username, display_name, bio from users where username = $1 and suspended_at is null", [username],
   );
   if (!profile) return null;
   const [picks, lists] = await Promise.all([

@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useState, type ReactNode } from "react";
-import { addRuleAction, type RuleState } from "@/app/actions";
+import { addRuleAction, type RuleState } from "@/app/settings/rules/actions";
 
 /**
  * One small form per rule kind. The value is kept on error (no automatic form reset)

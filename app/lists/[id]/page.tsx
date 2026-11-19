@@ -6,7 +6,7 @@ import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { getList } from "@/lib/lists";
 import { formatDuration, plural } from "@/lib/format";
-import { deleteListAction, followListAction, listItemAction } from "@/app/actions";
+import { deleteListAction, followListAction, listItemAction } from "@/app/lists/actions";
 import { Facts } from "@/app/components/Facts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

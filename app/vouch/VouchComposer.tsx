@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useState } from "react";
-import { vouchAction, type VouchState } from "@/app/actions";
+import { vouchAction, type VouchState } from "@/app/vouch/actions";
 
 const NOTE_MAX = 280;
 const MAX_TOPICS = 3;

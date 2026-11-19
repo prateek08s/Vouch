@@ -63,7 +63,7 @@ export async function circleFeed(
     `with eligible as (
        select v.id, v.resource_id, u.is_system
        from follows f
-       join vouches v   on v.user_id = f.followee_id and v.created_at <= $3
+       join vouches v   on v.user_id = f.followee_id and v.created_at <= $3 and v.hidden_at is null
        join users u     on u.id = v.user_id
        join resources r on r.id = v.resource_id and r.metadata_status <> 'unavailable'
        where f.follower_id = $1

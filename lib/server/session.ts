@@ -17,7 +17,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Use
   if (!authConfigured()) return null;
   const { data: { user }, error } = await (await authClient()).auth.getUser();
   if (error || !user) return null;
-  const [profile] = await (await getDb()).query<User>("select * from users where auth_user_id = $1 and not is_system", [user.id]);
+  const [profile] = await (await getDb()).query<User>("select * from users where auth_user_id = $1 and not is_system and suspended_at is null", [user.id]);
   return profile ?? null;
 });
 
