@@ -98,22 +98,27 @@ from the daily limit and from analytics), one Vouch per video, a link to every r
 comment on the watch page, and public lists: "Hacker News Vouched" plus up to 20 topic lists.
 Quotes are kept only if they appear word for word in the comment.
 
-### Weekly refresh (scheduled)
+### Weekly refresh (scheduled, no API key)
 
-`.github/workflows/hn-refresh.yml` runs every Sunday at 21:41 UTC (Monday 03:11 IST), and on demand
-from the Actions tab ("Run workflow", optionally with months such as `2026-01,2026-02`). It:
+Three pieces, none of which needs an Anthropic key:
 
-1. works out the months to process (`scripts/hn/pending-months.mts`): every finished month since
-   2025-01 without committed verdicts, plus last month and this month for late comments;
-2. downloads and filters them (`extract_candidates.py --month-list … --refresh --skip-missing`;
-   a month the dataset hasn't published yet is skipped and picked up next week);
-3. classifies only comments that have no verdict yet, and commits `data/hn/verdicts/` to `main`;
-4. imports every year into production when the `DATABASE_URL` secret is set (`import.mts --all`).
+1. **Extract** (`.github/workflows/hn-extract.yml`, GitHub Actions, Sundays 21:41 UTC, or "Run
+   workflow"): picks the months to work on (`scripts/hn/pending-months.mts`: finished months since
+   2025-01 without verdicts, plus last month and this month for late comments), downloads them
+   (`extract_candidates.py --month-list … --refresh --skip-missing`) and pushes
+   `candidates/YYYY-MM.jsonl` to the `hn-candidates` branch. A month the dataset hasn't
+   published yet is retried the next week. Vercel ignores that branch (`vercel.json`).
+2. **Classify** (a daily scheduled Claude task): copies the candidates into `data/hn/candidates/`,
+   runs `scripts/hn/session-classify.mts prepare` (up to 2,000 comments without a verdict), answers
+   the batches itself, then `session-classify.mts apply`, which validates every answer exactly like
+   the API path (IDs, verbatim quotes, known topics) and appends `data/hn/verdicts/YYYY-MM.jsonl`.
+   It commits those to `main`. Needs the Claude GitHub App installed on the repository.
+3. **Import** (`.github/workflows/hn-import.yml`): on every push that changes `data/hn/verdicts/`,
+   imports every year into production. Skipped until the `DATABASE_URL` secret exists; optional
+   `YOUTUBE_API_KEY` secret for video lengths.
 
-Repository secrets: `ANTHROPIC_API_KEY` (about $1 a year of comments) or `CLAUDE_CODE_OAUTH_TOKEN`
-(from `claude setup-token`, uses your plan); optional `YOUTUBE_API_KEY` for video lengths and
-`DATABASE_URL` for production. Locally, after `git pull`, run `npm run db:seed` with the dev server
-stopped to import every year that has verdicts.
+Locally, after `git pull`, stop the dev server and run `npm run db:seed` to import every year
+that has verdicts. `scripts/hn/classify.mts` still works for one-off runs with an API key or Claude Code.
 
 ## Design decisions worth knowing
 

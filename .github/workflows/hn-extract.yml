@@ -1,0 +1,85 @@
+name: Extract Hacker News comments
+
+# Weekly, no keys needed: download the Hacker News months that still need work, keep comments that
+# link a YouTube video, and push them to the hn-candidates branch (candidates/YYYY-MM.jsonl).
+# A scheduled Claude task then classifies them and commits data/hn/verdicts to main, which
+# triggers "Import Hacker News picks".
+on:
+  schedule:
+    - cron: "41 21 * * 0" # Sundays 21:41 UTC (Monday 03:11 in India)
+  workflow_dispatch:
+    inputs:
+      months:
+        description: "Months to extract, e.g. 2026-01,2026-02 (blank = whatever is pending)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths: [.github/workflows/hn-extract.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hn-extract
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: pip install pyarrow
+
+      - name: Check out the candidates branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin hn-candidates > /dev/null; then
+            git fetch --depth=1 origin hn-candidates:hn-candidates
+            git worktree add hncand hn-candidates
+          else
+            git worktree add --orphan -b hn-candidates hncand
+            printf 'raw/\n' > hncand/.gitignore
+            printf '# Hacker News comments that link YouTube\n\nWritten by .github/workflows/hn-extract.yml on main. Source: open-index/hacker-news (ODC-BY).\n' > hncand/README.md
+          fi
+
+      - name: Choose months
+        id: months
+        run: |
+          list="${{ inputs.months }}"
+          if [ -z "$list" ]; then
+            pending=$(npx tsx scripts/hn/pending-months.mts --data-dir data/hn)
+            cur=$(date -u +%Y-%m)
+            last=$(date -u -d "$(date -u +%Y-%m-01) -1 month" +%Y-%m)
+            for m in $(echo "$pending" | tr ',' ' '); do
+              # Months still collecting comments are re-read; older ones only once.
+              if [ "$m" = "$cur" ] || [ "$m" = "$last" ] || [ ! -f "hncand/candidates/$m.jsonl" ]; then list="$list,$m"; fi
+            done
+            list="${list#,}"
+          fi
+          echo "Extracting: ${list:-nothing}"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+
+      - name: Find comments that link YouTube
+        if: ${{ steps.months.outputs.list != '' }}
+        run: >
+          python -I scripts/hn/extract_candidates.py --month-list "${{ steps.months.outputs.list }}"
+          --data-dir hncand --refresh --skip-missing
+
+      - name: Push the candidates branch
+        run: |
+          cd hncand
+          git add -A
+          if git diff --cached --quiet; then echo "No new comments."; exit 0; fi
+          git commit -m "Candidates for ${{ steps.months.outputs.list }}"
+          git push origin hn-candidates
