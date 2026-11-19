@@ -63,8 +63,13 @@ const years = [...new Set(asked.map((m) => m.slice(0, 4)))].sort();
 const months = years.flatMap((y) => Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`));
 // A month still in progress may have no verdicts yet; only finished months must be complete.
 const missing = months.filter((m) => !verdictFile(m) && monthEnded(m, new Date()));
-if (missing.length) {
-  console.error(`No verdicts for ${missing.join(", ")}. Run scripts/hn/classify.mts for them first; nothing was imported.`);
+// --all imports everything that exists, so the lists are built from every verdict there is and a
+// month still being classified (or not yet published) can't shrink them. Only partial picks of
+// years need the guard.
+if (missing.length && args.all) {
+  console.warn(`No verdicts yet for ${missing.join(", ")}; importing the rest.`);
+} else if (missing.length) {
+  console.error(`No verdicts for ${missing.join(", ")}. Run scripts/hn/classify.mts for them first, or use --all; nothing was imported.`);
   process.exit(1);
 }
 
