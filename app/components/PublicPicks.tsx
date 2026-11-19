@@ -1,10 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { PublicPick } from "@/lib/public";
-import { initials } from "@/lib/format";
+import { initials, plural } from "@/lib/format";
+import { Facts } from "./Facts";
 
-/** Public picks, for people who are not signed in. The video opens on YouTube. */
-export function PublicPicks({ picks, showCurator = true }: { picks: PublicPick[]; showCurator?: boolean }) {
+type Pick = PublicPick & { people?: number; creatorName?: string | null };
+
+/** Public picks. Each opens on Vouch's watch page, which anyone can view. */
+export function PublicPicks({ picks, showCurator = true }: { picks: Pick[]; showCurator?: boolean }) {
   if (!picks.length) {
     return (
       <div className="empty">
@@ -29,12 +32,13 @@ export function PublicPicks({ picks, showCurator = true }: { picks: PublicPick[]
             )}
             {pick.note && <blockquote className="note">{pick.note}</blockquote>}
             <h2 id={`p-${pick.id}`} className={pick.note ? "rec-title" : "rec-title solo"}>
-              <a href={pick.canonical_url} target="_blank" rel="noreferrer">{pick.title}</a>
+              <Link href={`/watch/${pick.id}`}>{pick.title}</Link>
             </h2>
+            <Facts items={[pick.creatorName, pick.people && pick.people > 1 ? `Recommended by ${plural(pick.people, "person", "people")}` : null]} />
           </div>
-          <a className="frame rec-media" href={pick.canonical_url} target="_blank" rel="noreferrer" tabIndex={-1} aria-hidden="true">
+          <Link className="frame rec-media" href={`/watch/${pick.id}`} tabIndex={-1} aria-hidden="true">
             {pick.thumbnail_url ? <Image unoptimized src={pick.thumbnail_url} alt="" fill sizes="(max-width: 46rem) 100vw, 22rem" /> : <span className="placeholder">Vouch</span>}
-          </a>
+          </Link>
         </article>
       ))}
     </div>

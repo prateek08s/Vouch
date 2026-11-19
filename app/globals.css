@@ -451,3 +451,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .prose p, .prose li { color: var(--ink-2); line-height: 1.6; }
 .prose ul { padding-left: 1.2rem; margin: 0; display: grid; gap: 0.5rem; }
 .prose p + p { margin-top: 0.75rem; }
+.topic-filter { margin: -0.75rem 0 1.5rem; }
+.chip-link { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 999px; border: 1px solid var(--rule-strong); background: var(--surface); font-size: var(--t-sm); color: var(--ink-2); text-decoration: none; }
+.chip-link:hover { border-color: var(--ink-2); color: var(--ink); }
+.chip-link.on { background: var(--pen); border-color: var(--pen); color: #fff; font-weight: 600; }

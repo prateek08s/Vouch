@@ -8,6 +8,7 @@ import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { formatDuration, greeting, initials, plural } from "@/lib/format";
 import { publicPicks } from "@/lib/public";
+import { discoverPicks } from "@/lib/public/discover";
 import { RecommendationCard } from "./components/RecommendationCard";
 import { PublicPicks } from "./components/PublicPicks";
 import { Facts } from "./components/Facts";
@@ -45,6 +46,7 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
   const firstName = user.display_name.split(" ")[0];
 
   if (!page.items.length && cursor === 0) {
+    const popular = page.hiddenByRules > 0 ? null : await discoverPicks(db, user.id, { limit: 6 });
     return (
       <>
         {banner}
@@ -66,11 +68,18 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
             <p>Follow a few people whose taste you trust, and their vouches will show up here.</p>
             <div className="actions">
               <Link className="button" href="/people">Find people to follow</Link>
-              <Link className="button ghost" href="/discover">Browse public picks</Link>
+              <Link className="button ghost" href="/discover">Browse Discover</Link>
             </div>
           </div>
         )}
         <UpNextSection items={upNext} />
+        {popular && popular.picks.length > 0 && (
+          <section className="section" aria-labelledby="popular-h">
+            <h2 id="popular-h" className="section-title">Popular on Vouch</h2>
+            <p className="section-note">Not from your circle: the best-recommended picks from everyone.</p>
+            <PublicPicks picks={popular.picks} />
+          </section>
+        )}
       </>
     );
   }
