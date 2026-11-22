@@ -4,13 +4,21 @@ import { expect, test } from "@playwright/test";
 
 test("home is Discover: what Vouch is, then real picks, with no sign-up first", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Long videos Hacker News recommends");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("YouTube, recommended in one sentence.");
   await expect(page.getByRole("heading", { name: "But what is a neural network?" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Filter by length" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Build your Circle" })).toHaveCount(0);
   await page.getByRole("link", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/signin$/);
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("signed out, Search finds picks instead of asking to sign in", async ({ page }) => {
+  await page.goto("/search?q=neural");
+  await expect(page).toHaveURL(/\/search\?q=neural/);
+  await expect(page.getByRole("status")).toContainText("result");
+  await expect(page.getByRole("link", { name: "But what is a neural network?" })).toBeVisible();
+  await expect(page.getByText("Only from my circle")).toHaveCount(0);
 });
 
 test("signed out, a viewer can rate, save and hide what they watched", async ({ page }) => {

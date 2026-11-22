@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
@@ -11,6 +10,12 @@ import { recordImpressions } from "@/lib/analytics";
 import { groupedTopics, loadTopics } from "@/lib/topics";
 import { formatDuration, plural } from "@/lib/format";
 import { Facts } from "@/app/components/Facts";
+import { socialEnabled } from "@/lib/flags";
+import { recordAnon } from "@/lib/experiment";
+import { anonContext } from "@/lib/experiment/server";
+
+/** Signed-out searches run as "nobody": no rules, ratings or circle apply. */
+const NOBODY = "00000000-0000-0000-0000-000000000000";
 
 export const metadata: Metadata = { title: "Search" };
 
@@ -21,7 +26,11 @@ export default function SearchPage(props: PageProps<"/search">) {
     <>
       <header className="page-head">
         <h1>Search</h1>
-        <p>Only videos someone vouched for. Search a title or topic, or a curator with <code>@username</code>.</p>
+        <p>
+          {socialEnabled()
+            ? <>Only videos someone vouched for. Search a title or topic, or a curator with <code>@username</code>.</>
+            : "Only videos Hacker News commenters recommended. Search a title, speaker, channel or topic."}
+        </p>
       </header>
       <Suspense fallback={<p className="muted">Searching…</p>}>
         <Results {...props} />
@@ -31,25 +40,30 @@ export default function SearchPage(props: PageProps<"/search">) {
 }
 
 async function Results({ searchParams }: PageProps<"/search">) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/signin");
+  const [user, anon] = await Promise.all([getCurrentUser(), anonContext()]);
+  const social = socialEnabled() && Boolean(user);
   const sp = await searchParams;
   const q = one(sp.q).slice(0, 200);
-  const circleOnly = one(sp.circle) === "1";
+  const circleOnly = social && one(sp.circle) === "1";
   const topic = one(sp.topic) || null;
 
   const db = await getDb();
-  if ((q.trim() || topic) && !(await allow(db, "search", user.id))) {
+  const limitKey = user?.id ?? (anon ? `anon:${anon.anonId}` : "anon");
+  if ((q.trim() || topic) && !(await allow(db, "search", limitKey))) {
     return <div className="empty" role="alert"><strong>Too many searches.</strong><p>{LIMIT_MESSAGE}</p></div>;
   }
-  const [res, topics] = await Promise.all([search(db, user.id, q, { circleOnly, topic }), loadTopics(db)]);
+  const [res, topics] = await Promise.all([search(db, user?.id ?? NOBODY, q, { circleOnly, topic }), loadTopics(db)]);
   const groups = groupedTopics(topics);
   const searched = Boolean(q.trim() || topic);
   // Circle-backed results are the human signal worth comparing with plain matches.
-  await recordImpressions(db, user.id, "search", res.results.map((r) => ({
-    resourceId: r.resourceId,
-    explanationCode: r.circleVouchers.length ? "search_circle" : "search_match",
-  })));
+  if (user) {
+    await recordImpressions(db, user.id, "search", res.results.map((r) => ({
+      resourceId: r.resourceId,
+      explanationCode: r.circleVouchers.length ? "search_circle" : "search_match",
+    })));
+  } else if (anon) {
+    await recordAnon(db, anon.anonId, anon.variant, "impression", res.results.map((r) => r.resourceId));
+  }
 
   return (
     <>
@@ -60,7 +74,7 @@ async function Results({ searchParams }: PageProps<"/search">) {
             <path d="m13 13 4.25 4.25" strokeLinecap="round" />
           </svg>
           <label htmlFor="q" className="skip-label">Search vouched videos</label>
-          <input id="q" name="q" type="search" defaultValue={q} placeholder="transformers, @priya, GPU…" autoComplete="off" />
+          <input id="q" name="q" type="search" defaultValue={q} placeholder={social ? "transformers, @priya, GPU…" : "transformers, Rich Hickey, compilers…"} autoComplete="off" />
         </div>
         <button className="button">Search</button>
         <div className="search-filters">
@@ -76,10 +90,12 @@ async function Results({ searchParams }: PageProps<"/search">) {
               </optgroup>
             ))}
           </select>
-          <label className="check">
-            <input type="checkbox" name="circle" value="1" defaultChecked={circleOnly} />
-            <span>Only from my circle</span>
-          </label>
+          {social && (
+            <label className="check">
+              <input type="checkbox" name="circle" value="1" defaultChecked={circleOnly} />
+              <span>Only from my circle</span>
+            </label>
+          )}
         </div>
       </form>
 
@@ -118,11 +134,11 @@ async function Results({ searchParams }: PageProps<"/search">) {
                 <span className="grow">
                   <Link href={`/watch/${r.resourceId}`}>{r.title}</Link>
                   <Facts items={[r.creatorName, formatDuration(r.durationS), r.topics.join(", ") || null]} />
-                  <span className="muted">
+                  {social && <span className="muted">
                     {r.circleVouchers.length
                       ? `Vouched by ${r.circleVouchers.slice(0, 2).join(" and ")}${r.circleVouchers.length > 2 ? ` and ${r.circleVouchers.length - 2} more` : ""} in your circle`
                       : `${plural(r.vouchCount, "vouch", "vouches")}, none from your circle yet`}
-                  </span>
+                  </span>}
                   {r.topNote && <span className="item-note">“{r.topNote.text}” <span className="muted">{r.topNote.by}</span></span>}
                 </span>
               </li>
@@ -134,8 +150,17 @@ async function Results({ searchParams }: PageProps<"/search">) {
       {searched && !res.results.length && !res.lists.length && (
         <div className="empty">
           <strong>No one has vouched for that yet.</strong>
-          <p>Try a broader word or a parent topic. Found something worth it yourself?</p>
-          <div className="actions"><Link className="button" href="/vouch">Vouch for a video</Link></div>
+          {social ? (
+            <>
+              <p>Try a broader word or a parent topic. Found something worth it yourself?</p>
+              <div className="actions"><Link className="button" href="/vouch">Vouch for a video</Link></div>
+            </>
+          ) : (
+            <>
+              <p>Try a broader word, a speaker&apos;s name or a topic.</p>
+              <div className="actions"><Link className="button ghost" href="/">Browse picks</Link></div>
+            </>
+          )}
         </div>
       )}
     </>

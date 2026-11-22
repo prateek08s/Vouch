@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { EMPTY_LEARNING, type LearningState, type LearningVideo } from "@/lib/learning/model";
 import { LearningButtons, useLearning } from "@/app/learning/LearningControls";
 
@@ -49,8 +49,9 @@ function loadPlayerApi(): Promise<PlayerApi> {
   return apiPromise;
 }
 
-export function LearningPlayer({ video, initial = EMPTY_LEARNING, signedIn }: {
-  video: LearningVideo; initial?: LearningState; signedIn: boolean;
+/** `heading` (the title and facts) sits between the player and the controls, where viewers expect it. */
+export function LearningPlayer({ video, initial = EMPTY_LEARNING, signedIn, heading }: {
+  video: LearningVideo; initial?: LearningState; signedIn: boolean; heading?: ReactNode;
 }) {
   const learning = useLearning(video, initial, signedIn);
   const iframe = useRef<HTMLIFrameElement>(null);
@@ -125,6 +126,7 @@ export function LearningPlayer({ video, initial = EMPTY_LEARNING, signedIn }: {
           allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           referrerPolicy="strict-origin-when-cross-origin" allowFullScreen />
       </div>
+      {heading}
       <div className="learning-tools">
         <LearningButtons state={learning.state} pending={learning.pending} update={update} />
         <p className="muted" role="status">

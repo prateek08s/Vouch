@@ -12,7 +12,8 @@ import { WatchedFilter } from "./local/WatchedFilter";
 
 type SP = Record<string, string | string[] | undefined>;
 
-export async function DiscoverFeed({ searchParams, base }: { searchParams: Promise<SP>; base: string }) {
+/** `skip`: picks already featured above the feed, left out of its first unfiltered page. */
+export async function DiscoverFeed({ searchParams, base, skip = [] }: { searchParams: Promise<SP>; base: string; skip?: string[] }) {
   const filters = parseDiscoverFilters(await searchParams);
   const { topics, length, sort, channel, maxMinutes } = filters;
   const [user, db, anon] = await Promise.all([getCurrentUser(), getDb(), anonContext()]);
@@ -91,7 +92,10 @@ export async function DiscoverFeed({ searchParams, base }: { searchParams: Promi
         {maxMinutes !== null && <>Up to {maxMinutes} minutes. </>}
         <Link href={base}>Clear filters</Link>
       </p>}
-      <PublicPicks picks={res.picks} showReason={anon?.variant !== "nonote"} />
+      <PublicPicks
+        picks={!active && sort === "top" && !filters.cursor ? res.picks.filter((p) => !skip.includes(p.id)) : res.picks}
+        showReason={anon?.variant !== "nonote"}
+      />
       <div className="more">
         {res.nextCursor !== null && <Link className="button ghost" href={href({ cursor: res.nextCursor })}>Show more</Link>}
         {res.hiddenByRules > 0 && <p className="muted">{plural(res.hiddenByRules, "video is", "videos are")} hidden by your <Link href="/settings/rules">rules</Link>.</p>}

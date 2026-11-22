@@ -16,6 +16,9 @@
   --pen: #1f3bb3;
   --pen-deep: #172c8a;
   --pen-soft: #e9edfb;
+  /* Highlighter: the brand's second colour. A background behind ink, never text on its own. */
+  --mark: #ffd84d;
+  --mark-soft: #fff1b8;
   --worth: #146c45;
   --worth-soft: #e2f2e9;
   --miss: #a3271b;
@@ -70,9 +73,10 @@ main.shell { flex: 1; padding-block: 2.75rem 5rem; }
 /* Header */
 .site-header { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--rule); }
 .site-header .shell { display: flex; align-items: center; gap: 2rem; height: 4rem; }
-.wordmark { display: inline-flex; align-items: baseline; gap: 0.1rem; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.035em; color: var(--ink); text-decoration: none; }
+.wordmark { display: inline-flex; align-items: center; gap: 0.55rem; font-size: 1.5rem; font-weight: 850; letter-spacing: -0.045em; color: var(--ink); text-decoration: none; }
 .wordmark:hover { color: var(--ink); }
-.wordmark .mark { font-family: var(--serif); font-style: italic; font-weight: 600; color: var(--pen); font-size: 1.9rem; line-height: 0; transform: translateY(0.3rem); }
+.wordmark svg { flex: none; transition: transform 160ms ease; }
+.wordmark:hover svg { transform: rotate(-6deg); }
 .nav { display: flex; align-items: center; gap: 0.25rem; flex: 1; min-width: 0; }
 .nav-links { display: flex; gap: 0.15rem; }
 .nav-link { color: var(--ink-2); text-decoration: none; font-size: var(--t-sm); font-weight: 500; padding: 0.45rem 0.7rem; border-radius: var(--r-sm); white-space: nowrap; }
@@ -566,3 +570,137 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .resource-remove span { min-width: 0; overflow-wrap: anywhere; }
 
 .roadmap-editor { max-width: 44rem; } .roadmap-editor label { display:grid; gap:.5rem; } .roadmap-editor input:not([type=checkbox]), .roadmap-editor select, .roadmap-editor textarea { width:100%; min-width:0; padding:.7rem; font:inherit; border:1px solid var(--rule-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--ink); } .roadmap-stage-editor { padding:1rem 0; border-bottom:1px solid var(--rule); } .roadmap-stages { list-style:none; padding:0; } .roadmap-stages > li { margin:1rem 0; padding:1.25rem; border:1px solid var(--rule); border-radius:var(--r-md); } .roadmap-stages h2 { margin:.5rem 0; }
+
+/* "More filters" reads as a quiet link until opened, instead of a full-width card. */
+.discover-filters { border: 0; padding: 0; margin: 0 0 1.25rem; }
+.discover-filters summary { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; font-weight: 600; font-size: var(--t-sm); color: var(--pen); }
+.discover-filters summary:hover { color: var(--pen-deep); text-decoration: underline; text-underline-offset: 3px; }
+.discover-filters[open] { border: 1px solid var(--rule); border-radius: var(--r-md); padding: 0.5rem 1rem 1rem; background: var(--surface); }
+
+/* Phones: each filter group is one row that scrolls sideways, so the first pick shows on the first screen. */
+@media (max-width: 40rem) {
+  .hero { padding: 0 0 1.25rem; }
+  .hero h1 { font-size: 1.85rem; line-height: 1.1; letter-spacing: -0.035em; }
+  .hero .lede { font-size: var(--t-md); margin-top: 0.75rem; }
+  .topic-filter { margin-top: 0; margin-bottom: 0.6rem; }
+  .topic-filter, .feed-controls .chips {
+    flex-wrap: nowrap; overflow-x: auto; margin-inline: -1.5rem; padding: 0.1rem 1.5rem 0.25rem;
+    scrollbar-width: none; scroll-padding-inline: 1.5rem;
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+  }
+  .topic-filter::-webkit-scrollbar, .feed-controls .chips::-webkit-scrollbar { display: none; }
+  .topic-filter .chip-link, .feed-controls .chip-link { flex: none; white-space: nowrap; padding-block: 0.45rem; }
+  .feed-controls { flex-direction: column; align-items: stretch; gap: 0.5rem; margin: 0 0 0.75rem; }
+  .hide-watched { margin-left: 0; min-height: 2.25rem; }
+}
+
+/* ===== Identity: quotes first, highlighter as the one loud gesture ===== */
+
+/* Highlighter stroke behind words. Drawn in once on the home hero; still everywhere else. */
+.hl {
+  background-image: linear-gradient(100deg, transparent 0.15em, var(--mark) 0.15em, var(--mark) calc(100% - 0.1em), transparent calc(100% - 0.1em));
+  background-repeat: no-repeat; background-size: 100% 0.62em; background-position: 0 92%;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 0.1em;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .spotlight-quote .hl { background-size: 0% 0.62em; animation: hl-draw 900ms 300ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards; }
+}
+@keyframes hl-draw { to { background-size: 100% 0.62em; } }
+
+/* "Vouched 16×": how many people stood behind a pick. */
+.stamp {
+  display: inline-flex; align-items: center; width: fit-content; padding: 0.12rem 0.55rem;
+  border: 1.5px solid var(--pen); border-radius: 999px; background: var(--surface);
+  color: var(--pen); font-size: var(--t-xs); font-weight: 750; letter-spacing: 0.01em; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+
+/* Credit line under a quote, the way a pull-quote names its critic. */
+.credit { margin: 0; font-size: var(--t-sm); color: var(--muted); }
+.credit strong { color: var(--ink); font-weight: 650; }
+.credit strong a { color: inherit; text-decoration: none; }
+.credit a { color: var(--muted); }
+.credit a:hover { color: var(--pen); }
+
+/* Home hero */
+.hero { max-width: none; padding: 0.5rem 0 3rem; }
+.hero-intro { max-width: 46rem; }
+.hero h1 { font-size: clamp(2.4rem, 5.4vw, 4.4rem); line-height: 1; letter-spacing: -0.05em; text-wrap: balance; }
+.hero .lede { max-width: 54ch; }
+
+.featured { margin-top: 2.5rem; }
+.spotlight {
+  margin: 0; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 2.5rem; align-items: center;
+  padding: clamp(1.5rem, 3.5vw, 2.75rem); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg);
+  box-shadow: 0 1px 0 var(--rule), 0 18px 40px -28px rgb(21 26 48 / 0.35);
+}
+.spotlight-text { display: grid; gap: 1.1rem; justify-items: start; }
+.spotlight-quote { margin: 0; position: relative; }
+.spotlight-quote::before {
+  content: "\201C"; position: absolute; left: -0.08em; top: -0.42em; font-family: var(--serif); font-size: 5.5rem; line-height: 1;
+  color: var(--pen); font-style: normal; font-weight: 600;
+}
+.spotlight-quote p {
+  margin: 0; padding-top: 2.4rem; font-family: var(--serif); font-style: italic; font-weight: 450;
+  font-size: clamp(1.55rem, 2.9vw, 2.45rem); line-height: 1.22; letter-spacing: -0.01em; color: var(--ink); text-wrap: balance;
+}
+.spotlight figcaption { display: grid; gap: 0.45rem; }
+.spotlight-title { margin: 0.35rem 0 0; font-size: var(--t-xl); font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; }
+.spotlight-title a { color: var(--ink); text-decoration: none; }
+.spotlight-title a:hover { color: var(--pen); }
+.spotlight-meta { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; color: var(--muted); font-size: var(--t-sm); }
+.spotlight-media { align-self: stretch; aspect-ratio: auto; min-height: 15rem; border-radius: var(--r-md); }
+
+.also { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem 3rem; margin-top: 2rem; }
+.also-quote { margin: 0; padding-left: 1.1rem; border-left: 4px solid var(--mark); display: grid; gap: 0.5rem; }
+.also-quote blockquote { margin: 0; }
+.also-quote p { margin: 0; font-family: var(--serif); font-style: italic; font-size: var(--t-lg); line-height: 1.4; color: var(--ink); }
+.also-quote a { color: var(--ink); font-weight: 600; text-decoration-color: var(--rule-strong); text-underline-offset: 3px; }
+.also-quote a:hover { color: var(--pen); }
+
+.feed-heading { font-size: var(--t-2xl); font-weight: 800; letter-spacing: -0.03em; margin: 0 0 1rem; }
+
+/* Pick rows: picture, then what someone said, then what it is. */
+.rec { grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); gap: 0.9rem 2.25rem; padding: 1.75rem 0; align-items: start; }
+.rec-media { order: -1; border-radius: var(--r-md); }
+.rec-body { gap: 0.6rem; }
+.rec .note { font-size: clamp(var(--t-lg), 1.6vw, var(--t-xl)); line-height: 1.38; }
+.rec .credit { margin-top: -0.2rem; }
+.rec-title { margin-top: 0.3rem; font-size: var(--t-lg); font-weight: 700; }
+.rec-title.solo { margin-top: 0; }
+.rec-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; }
+.rec:hover .rec-media img { transform: scale(1.025); }
+.rec-media img { transition: transform 300ms ease; }
+@media (prefers-reduced-motion: reduce) { .rec-media img, .wordmark svg { transition: none; } }
+
+@media (max-width: 46rem) {
+  .rec { grid-template-columns: 1fr; padding: 1.4rem 0; }
+  .spotlight { grid-template-columns: 1fr; gap: 1.5rem; }
+  .spotlight-media { order: -1; aspect-ratio: 16 / 9; min-height: 0; }
+  .also { grid-template-columns: 1fr; }
+}
+@media (max-width: 40rem) {
+  .hero h1 { font-size: 2.15rem; line-height: 1.02; }
+  .featured { margin-top: 1.5rem; }
+  .also { display: none; }
+  .spotlight-quote::before { font-size: 4.25rem; }
+  .spotlight-quote p { padding-top: 1.9rem; font-size: 1.45rem; }
+}
+
+/* Hero refinements: a two-line headline, the thumbnail kept at 16:9, and on phones the quote first. */
+.hero-intro { max-width: 62rem; }
+.spotlight-quote::before { top: -0.3em; }
+.spotlight-quote p { padding-top: 1.75rem; }
+.spotlight-media { align-self: center; aspect-ratio: 16 / 9; min-height: 0; }
+@media (max-width: 40rem) {
+  .spotlight-media { display: none; }
+  .spotlight-quote p { padding-top: 1.5rem; }
+}
+
+/* Watch page: the quote that sold it comes first, highlighted, with how many vouched. */
+.why-count { margin: -0.25rem 0 0.9rem; display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: var(--t-sm); }
+.why .notes > li:first-child .note { font-size: var(--t-xl); line-height: 1.4; }
+.spotlight-quote p { padding-top: 1.35rem; }
+@media (max-width: 40rem) {
+  .spotlight-quote::before { font-size: 3.6rem; top: -0.22em; }
+  .spotlight-quote p { padding-top: 1.1rem; }
+}

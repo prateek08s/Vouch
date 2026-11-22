@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/server/session";
 import { signOutAction } from "@/app/auth/actions";
 import { NavLinks, StaticNavLinks } from "./components/NavLink";
 import { socialEnabled } from "@/lib/flags";
+import { LogoMark } from "./components/Logo";
 import { Avatar } from "./components/Avatar";
 import "./globals.css";
 
@@ -61,8 +62,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <a className="skip" href="#main">Skip to content</a>
         <header className="site-header">
           <div className="shell">
-            <Link href="/" className="wordmark" aria-label="Vouch, your Circle">
-              <span className="mark" aria-hidden="true">“</span>Vouch
+            <Link href="/" className="wordmark" aria-label="Vouch home">
+              <LogoMark size={30} />
+              <span>Vouch</span>
             </Link>
             <nav className="nav" aria-label="Main">
               <div className="nav-links">

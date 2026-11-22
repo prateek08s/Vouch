@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { socialEnabled } from "@/lib/flags";
+import { publicPaths } from "@/lib/paths";
 import { listsFor, type ListSummary } from "@/lib/lists";
 import { plural } from "@/lib/format";
 import { followListAction } from "@/app/lists/actions";
@@ -25,7 +26,6 @@ export default function ListsPage() {
             : "Hacker News picks gathered by topic, and any lists you make."}
         </p>
       </header>
-      <p className="section-note"><Link href="/paths">Explore learning paths</Link> with prerequisites and clear learning outcomes.</p>
       <Suspense fallback={<p className="muted">Loading lists…</p>}>
         <Lists />
       </Suspense>
@@ -63,11 +63,16 @@ function ListRow({ l, followable }: { l: ListSummary; followable?: boolean }) {
 
 async function Lists() {
   const user = await getCurrentUser();
-  const { mine, following, discover } = await listsFor(await getDb(), user?.id ?? NOBODY);
+  const db = await getDb();
+  const [{ mine, following, discover }, paths] = await Promise.all([listsFor(db, user?.id ?? NOBODY), publicPaths(db)]);
   const followable = Boolean(user) && socialEnabled();
   return (
     <div className="split">
       <div>
+        {/* Only point at learning paths once there is one to open. */}
+        {paths.length > 0 && (
+          <p className="section-note"><Link href="/paths">Explore learning paths</Link> with prerequisites and clear learning outcomes.</p>
+        )}
         {following.length > 0 && (
           <section className="section" aria-labelledby="following-h">
             <h2 id="following-h" className="section-title">Lists you follow</h2>

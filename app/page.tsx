@@ -9,6 +9,8 @@ import { formatDuration, greeting, monthYear, plural } from "@/lib/format";
 import { discoverPicks } from "@/lib/public/discover";
 import { RecommendationCard } from "./components/RecommendationCard";
 import { DiscoverFeed } from "./components/DiscoverFeed";
+import { FeaturedQuotes, quotable } from "./components/FeaturedQuotes";
+import { anonContext } from "@/lib/experiment/server";
 import { socialEnabled } from "@/lib/flags";
 import { PublicPicks } from "./components/PublicPicks";
 import { Facts } from "./components/Facts";
@@ -132,7 +134,10 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
 /** Home: what Vouch is, in one line, then the picks themselves. Nothing to sign up for first. */
 async function Home({ signedIn, searchParams }: { signedIn: boolean; searchParams: PageProps<"/">["searchParams"] }) {
   const sp = await searchParams;
-  const stats = await catalogStats(await getDb());
+  const db = await getDb();
+  const [stats, anon, top] = await Promise.all([catalogStats(db), anonContext(), discoverPicks(db, null, { limit: 24 })]);
+  // The experiment's "no note" browsers don't get quotes in the hero either.
+  const featured = anon?.variant === "nonote" ? [] : quotable(top.picks).slice(0, 3);
   return (
     <>
       {sp.deleted === "1" && <div className="notice" role="status"><span>Your account and everything in it was deleted.</span></div>}
@@ -143,16 +148,20 @@ async function Home({ signedIn, searchParams }: { signedIn: boolean; searchParam
         </header>
       ) : (
         <section className="hero" aria-labelledby="hero-h">
-          <h1 id="hero-h">Long videos Hacker News recommends, with the comment that recommended them.</h1>
-          <p className="lede">
-            {stats.videos.toLocaleString("en-US")} talks, lectures and documentaries that HN commenters said were worth
-            watching{stats.latest ? `, up to ${monthYear(stats.latest)}` : ""}. No account needed: save, rate and hide
-            what you&apos;ve watched, right here.
-          </p>
+          <div className="hero-intro">
+            <h1 id="hero-h">YouTube, recommended in one sentence.</h1>
+            <p className="lede">
+              {stats.videos.toLocaleString("en-US")} talks, lectures and documentaries that Hacker News commenters said were
+              worth the hour{stats.latest ? `, up to ${monthYear(stats.latest)}` : ""}. Each comes with the comment that
+              said so. No account needed.
+            </p>
+          </div>
+          <FeaturedQuotes picks={featured} />
         </section>
       )}
+      {!signedIn && <h2 className="feed-heading">Every pick</h2>}
       <Suspense fallback={<p className="muted">Loading picks…</p>}>
-        <DiscoverFeed searchParams={searchParams} base="/" />
+        <DiscoverFeed searchParams={searchParams} base="/" skip={signedIn ? [] : featured.map((p) => p.id)} />
       </Suspense>
     </>
   );

@@ -65,15 +65,23 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
   const currentItem = collection?.items.find((item) => item.resource_id === id);
   const attachments = collection && currentItem ? await lessonResources(db, user?.id ?? null, collection.list.id, id) : [];
   const outside = w.publicVouchCount - w.notes.length;
+  // Comments already quoted beside the player aren't repeated in the Hacker News section.
+  const quotedIds = new Set(w.notes.flatMap((n) => n.isSystem ? hn.mentions.filter((m) => m.excerpt && m.excerpt === n.note).map((m) => m.commentId) : []));
+  const moreMentions = hn.mentions.filter((m) => !quotedIds.has(m.commentId));
 
   return (
     <>
       <article className="watch">
         <div>
-          <LearningPlayer video={{ id: r.id, videoId: r.external_id, title: r.title, creatorName: r.creator_name, thumbnailUrl: r.thumbnail_url, durationS: r.duration_s }} initial={progress} signedIn={!!user} />
-
-          <h1 className="watch-title">{r.title}</h1>
-          <Facts items={[r.creator_name, runtime, ...w.topics.map((t) => t.name)]} />
+          <LearningPlayer
+            video={{ id: r.id, videoId: r.external_id, title: r.title, creatorName: r.creator_name, thumbnailUrl: r.thumbnail_url, durationS: r.duration_s }}
+            initial={progress}
+            signedIn={!!user}
+            heading={<>
+              <h1 className="watch-title">{r.title}</h1>
+              <Facts items={[r.creator_name, runtime, ...w.topics.map((t) => t.name)]} />
+            </>}
+          />
 
           <div className="watch-tools">
             <a className="tool" href={r.canonical_url} target="_blank" rel="noreferrer">Open on YouTube</a>
@@ -98,23 +106,12 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
             </p>
           )}
 
-          {user ? (
-            <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={social ? w.via?.curatorName ?? null : null} />
-          ) : !social ? (
-            <LocalActions resourceId={r.id} title={r.title} thumb={r.thumbnail_url} rate />
-          ) : (
-            <section className="worth" aria-labelledby="worth-h">
-              <h2 id="worth-h">Was this worth your time?</h2>
-              <p>Sign in to rate it, save it to a list, and get picks like this from people you trust.</p>
-              <div className="actions"><Link className="button" href="/signin">Sign in to rate</Link></div>
-            </section>
-          )}
-
           {w.notes.length > 0 && (
-            <section aria-labelledby="notes-h">
+            <section className="why" aria-labelledby="notes-h">
               <h2 id="notes-h" className="section-title">{user && social ? "Why your circle vouched" : "Why people vouched"}</h2>
+              {hn.total > 1 && <p className="why-count"><span className="stamp">Vouched {hn.total}×</span> on Hacker News</p>}
               <ul className="notes">
-                {w.notes.map((n) => {
+                {w.notes.map((n, i) => {
                   // An imported note is a quote: credit the commenter who wrote it, not the importer.
                   const quoted = n.isSystem ? hn.mentions.find((m) => m.excerpt && m.excerpt === n.note) ?? null : null;
                   return (
@@ -132,7 +129,7 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
                       </span>
                       {n.isOwnContent && <span className="pill creator">Creator vouch</span>}
                     </div>
-                    {n.note && <blockquote className="note">{n.note}</blockquote>}
+                    {n.note && <blockquote className="note">{i === 0 ? <span className="hl">{n.note}</span> : n.note}</blockquote>}
                     {user && n.note && (w.reported.includes(n.vouchId) ? (
                       <p className="report-done">Reported. Thanks, an admin will review it.</p>
                     ) : (
@@ -162,6 +159,18 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
               </ul>
             </section>
           )}
+          {user ? (
+            <WorthIt resourceId={r.id} via={w.via?.vouchId ?? ""} rating={w.rating} viaName={social ? w.via?.curatorName ?? null : null} />
+          ) : !social ? (
+            <LocalActions resourceId={r.id} title={r.title} thumb={r.thumbnail_url} rate />
+          ) : (
+            <section className="worth" aria-labelledby="worth-h">
+              <h2 id="worth-h">Was this worth your time?</h2>
+              <p>Sign in to rate it, save it to a list, and get picks like this from people you trust.</p>
+              <div className="actions"><Link className="button" href="/signin">Sign in to rate</Link></div>
+            </section>
+          )}
+
           {user && social && outside > 0 && (
             <p className="muted">
               {plural(outside, "more person", "more people")} outside your circle vouched for this.
@@ -174,15 +183,15 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
         <h2 id="lesson-resources-h">Lesson resources</h2>
         <LessonLinks resources={attachments} />
       </section>}
-      {hn.total > 0 && (
+      {moreMentions.length > 0 && (
         <section className="hn" aria-labelledby="hn-h">
-          <h2 id="hn-h" className="section-title">Recommended on Hacker News</h2>
+          <h2 id="hn-h" className="section-title">More recommendations on Hacker News</h2>
           <p className="section-note">
-            {plural(hn.total, "commenter", "commenters")} recommended this
-            {hn.total > hn.mentions.length ? `. Showing the latest ${hn.mentions.length}.` : "."}
+            {plural(hn.total, "commenter", "commenters")} recommended this.
+            {hn.total > moreMentions.length + quotedIds.size ? ` Showing the latest ${moreMentions.length} more.` : ""}
           </p>
           <ul className="notes">
-            {hn.mentions.map((m) => (
+            {moreMentions.map((m) => (
               <li key={m.commentId}>
                 <div className="byline">
                   <span className="avatar" aria-hidden="true">{initials(m.author)}</span>
