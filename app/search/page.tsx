@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
 import { search } from "@/lib/search";
+import { clientIp } from "@/lib/limits/ip";
 import { allow, LIMIT_MESSAGE } from "@/lib/limits";
 import { recordImpressions } from "@/lib/analytics";
 import { groupedTopics, loadTopics } from "@/lib/topics";
@@ -49,7 +50,9 @@ async function Results({ searchParams }: PageProps<"/search">) {
 
   const db = await getDb();
   const limitKey = user?.id ?? (anon ? `anon:${anon.anonId}` : "anon");
-  if ((q.trim() || topic) && !(await allow(db, "search", limitKey))) {
+  const limited = async () =>
+    !(await allow(db, "search", limitKey)) || (!user && !(await allow(db, "searchIp", `ip:${await clientIp()}`)));
+  if ((q.trim() || topic) && (await limited())) {
     return <div className="empty" role="alert"><strong>Too many searches.</strong><p>{LIMIT_MESSAGE}</p></div>;
   }
   const [res, topics] = await Promise.all([search(db, user?.id ?? NOBODY, q, { circleOnly, topic }), loadTopics(db)]);

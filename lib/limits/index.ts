@@ -13,6 +13,9 @@ export const LIMITS = {
   search: { max: 120, windowS: 600 },
   /** Follows, ratings, rules, list edits. */
   write: { max: 400, windowS: 3600 },
+  /** Signed-out traffic per IP. Anonymous IDs are client-chosen, so this is the real cap; loose because of shared NATs. */
+  searchIp: { max: 600, windowS: 600 },
+  writeIp: { max: 600, windowS: 3600 },
 } as const;
 
 export type Bucket = keyof typeof LIMITS;

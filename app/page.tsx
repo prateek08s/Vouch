@@ -5,11 +5,11 @@ import { circleFeed, logImpressions } from "@/lib/feed/circle";
 import { recordImpressions } from "@/lib/analytics";
 import { getDb } from "@/lib/server/db";
 import { getCurrentUser } from "@/lib/server/session";
-import { formatDuration, greeting, monthYear, plural } from "@/lib/format";
+import { formatDuration, greeting, plural } from "@/lib/format";
 import { discoverPicks } from "@/lib/public/discover";
 import { RecommendationCard } from "./components/RecommendationCard";
 import { DiscoverFeed } from "./components/DiscoverFeed";
-import { FeaturedQuotes, quotable } from "./components/FeaturedQuotes";
+import { HomeHero, quotable, type CatalogStats } from "./components/FeaturedQuotes";
 import { anonContext } from "@/lib/experiment/server";
 import { socialEnabled } from "@/lib/flags";
 import { PublicPicks } from "./components/PublicPicks";
@@ -136,8 +136,8 @@ async function Home({ signedIn, searchParams }: { signedIn: boolean; searchParam
   const sp = await searchParams;
   const db = await getDb();
   const [stats, anon, top] = await Promise.all([catalogStats(db), anonContext(), discoverPicks(db, null, { limit: 24 })]);
-  // The experiment's "no note" browsers don't get quotes in the hero either.
-  const featured = anon?.variant === "nonote" ? [] : quotable(top.picks).slice(0, 3);
+  // The experiment's "no note" browsers don't get a quote in the hero either.
+  const lead = anon?.variant === "nonote" ? null : quotable(top.picks)[0] ?? null;
   return (
     <>
       {sp.deleted === "1" && <div className="notice" role="status"><span>Your account and everything in it was deleted.</span></div>}
@@ -147,29 +147,23 @@ async function Home({ signedIn, searchParams }: { signedIn: boolean; searchParam
           <p>Long videos Hacker News commenters recommended, each with the comment that recommended it.</p>
         </header>
       ) : (
-        <section className="hero" aria-labelledby="hero-h">
-          <div className="hero-intro">
-            <h1 id="hero-h">YouTube, recommended in one sentence.</h1>
-            <p className="lede">
-              {stats.videos.toLocaleString("en-US")} talks, lectures and documentaries that Hacker News commenters said were
-              worth the hour{stats.latest ? `, up to ${monthYear(stats.latest)}` : ""}. Each comes with the comment that
-              said so. No account needed.
-            </p>
-          </div>
-          <FeaturedQuotes picks={featured} />
-        </section>
+        <HomeHero lead={lead} stats={stats} />
       )}
       {!signedIn && <h2 className="feed-heading">Every pick</h2>}
       <Suspense fallback={<p className="muted">Loading picks…</p>}>
-        <DiscoverFeed searchParams={searchParams} base="/" skip={signedIn ? [] : featured.map((p) => p.id)} />
+        <DiscoverFeed searchParams={searchParams} base="/" skip={signedIn || !lead ? [] : [lead.id]} />
       </Suspense>
     </>
   );
 }
 
-async function catalogStats(db: Awaited<ReturnType<typeof getDb>>) {
-  const [row] = await db.query<{ videos: number; latest: Date | null }>(
-    `select (select count(distinct v.resource_id)::int from vouches v where v.hidden_at is null) as videos,
+async function catalogStats(db: Awaited<ReturnType<typeof getDb>>): Promise<CatalogStats> {
+  const [row] = await db.query<CatalogStats>(
+    `with listed as (select distinct v.resource_id from vouches v where v.hidden_at is null)
+     select (select count(*)::int from listed) as videos,
+            (select count(distinct author)::int from hn_mentions) as people,
+            (select count(distinct r.creator_external_id)::int from resources r join listed l on l.resource_id = r.id) as channels,
+            (select count(*)::int from resources r join listed l on l.resource_id = r.id where r.is_short) as shorts,
             (select max(posted_at) from hn_mentions) as latest`,
   );
   return row;

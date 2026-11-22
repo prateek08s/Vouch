@@ -2,6 +2,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/lib/server/db";
+import { clientIp } from "@/lib/limits/ip";
 import { allow } from "@/lib/limits";
 import { getCurrentUser } from "@/lib/server/session";
 import { rate, recordOpen } from "@/lib/ratings";
@@ -64,5 +65,6 @@ export async function anonRateAction(resourceId: string, worth: boolean) {
   if (!anon) return;
   const db = await getDb();
   if (!(await allow(db, "write", `anon:${anon.anonId}`))) return;
+  if (!(await allow(db, "writeIp", `ip:${await clientIp()}`))) return;
   await recordAnonRating(db, anon.anonId, anon.variant, resourceId, worth);
 }

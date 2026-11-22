@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 
 test("home is Discover: what Vouch is, then real picks, with no sign-up first", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("YouTube, recommended in one sentence.");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("YouTube picks from Hacker News commenters, one sentence at a time");
   await expect(page.getByRole("heading", { name: "But what is a neural network?" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Filter by length" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Build your Circle" })).toHaveCount(0);
