@@ -80,6 +80,21 @@ describe("importHn", () => {
     expect(v.topics).toEqual(["gpu", "hardware"]);
   });
 
+  it("incremental import writes only the changed videos but keeps every video in the lists", async () => {
+    const [old, fresh] = [vid("old"), vid("new")];
+    const first = [verdict("alice", "2025-01-01T00:00:00Z", old, ["ai"], "still a classic")];
+    await importHn(aggregate(first), topics, { period: "2025" }, { db, metadata: fakeYouTube() });
+
+    const yt = fakeYouTube();
+    const all = [...first, verdict("bob", "2025-02-01T00:00:00Z", fresh, ["ai"], "new and good")];
+    const stats = await importHn(aggregate(all), topics, { period: "2025" }, { db, metadata: yt, onlyVideos: new Set([fresh]) });
+
+    expect(stats).toMatchObject({ imported: 1, updated: 0, mentions: 1 });
+    expect(yt.calls).toEqual([fresh]);
+    const main = stats.lists.find((l) => l.title === "Hacker News Vouched");
+    expect(main?.items).toBe(2);
+  });
+
   it("records every recommending comment with a link back to it", async () => {
     const id = vid("rec");
     const aggs = aggregate([verdict("alice", "2025-02-01T00:00:00Z", id, ["ai"], "worth every minute"), verdict("bob", "2025-03-01T00:00:00Z", id, ["ai"])]);

@@ -53,6 +53,11 @@ type Deps = {
   concurrency?: number;
   onProgress?: (done: number, total: number) => void;
   now?: () => Date;
+  /**
+   * Incremental import: write only these videos. The rest must already be in the database; they
+   * are still read back so the lists are rebuilt from every aggregate, not just the changed ones.
+   */
+  onlyVideos?: ReadonlySet<string>;
 };
 
 /** Fetches metadata for many videos at once, then serves ingest from the cache. */
@@ -93,9 +98,12 @@ export async function importHn(
     )).map((r) => [r.external_id, r.id]),
   );
   // Only unknown videos need a lookup; ingest refreshes known ones itself when they are stale.
-  const metadata = await prefetch(tagged.filter((a) => !known.has(a.videoId)).map((a) => a.videoId), deps.metadata, deps.concurrency ?? 6, deps.onProgress);
+  const only = deps.onlyVideos;
+  const toWrite = only ? tagged.filter((a) => only.has(a.videoId)) : tagged;
+  const metadata = await prefetch(toWrite.filter((a) => !known.has(a.videoId)).map((a) => a.videoId), deps.metadata, deps.concurrency ?? 6, deps.onProgress);
 
-  const resourceIds = new Map<string, string>();
+  // Videos left untouched by an incremental import keep their row; seed them so they stay in the lists.
+  const resourceIds = new Map<string, string>(only ? [...known].filter(([id]) => !only.has(id)) : []);
   // Writes run in parallel too: each round trip to a distant database is slow, and videos are
   // independent (vouches still serialize on the curator row inside createVouch).
   async function write(a: VideoAggregate) {
@@ -133,9 +141,9 @@ export async function importHn(
   }
   let nextWrite = 0;
   async function writer() {
-    while (nextWrite < tagged.length) await write(tagged[nextWrite++]);
+    while (nextWrite < toWrite.length) await write(toWrite[nextWrite++]);
   }
-  await Promise.all(Array.from({ length: Math.min(deps.concurrency ?? 6, tagged.length) }, writer));
+  await Promise.all(Array.from({ length: Math.min(deps.concurrency ?? 6, toWrite.length) }, writer));
 
   const imported = aggs.filter((a) => resourceIds.has(a.videoId));
   const byVideo = new Map(imported.map((a) => [a.videoId, a]));

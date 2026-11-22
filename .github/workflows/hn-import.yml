@@ -1,13 +1,24 @@
 name: Import Hacker News picks
 
-# When new verdicts land on main (from the scheduled classification task), import every year into
-# the production database. Skipped until the DATABASE_URL repository secret exists.
+# When new verdicts land on main (from the scheduled classification task), import them into the
+# production database. Only months whose verdicts changed since the last successful import are
+# written; the lists are still rebuilt from every month. Run it by hand with "full" for a complete
+# re-import. Skipped until the DATABASE_URL repository secret exists.
 # Optional secret: YOUTUBE_API_KEY, for video lengths.
 on:
   push:
     branches: [main]
     paths: ["data/hn/verdicts/**"]
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Re-import every video, not just changed months"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: hn-import
@@ -28,6 +39,26 @@ jobs:
           else echo "ready=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v4
         if: ${{ steps.db.outputs.ready == 'true' }}
+        with:
+          fetch-depth: 0
+      # Diff against the last import that succeeded, not just this push: a queued run can be
+      # superseded by a newer one, and its months must not be skipped.
+      - name: Find changed months
+        id: changed
+        if: ${{ steps.db.outputs.ready == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FULL: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+        run: |
+          base=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow hn-import.yml --status success --limit 1 --json headSha -q '.[0].headSha' || true)
+          if [ "$FULL" = "true" ] || [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "Full import (full=$FULL, last successful import: ${base:-none})."
+            echo "args=" >> "$GITHUB_OUTPUT"
+          else
+            months=$(git diff --name-only "$base" HEAD -- data/hn/verdicts | sed -n 's#^data/hn/verdicts/\([0-9]\{4\}-[0-9]\{2\}\)\.jsonl$#\1#p' | sort -u | paste -sd, -)
+            echo "Changed since ${base:0:7}: ${months:-none}"
+            echo "args=--changed=$months" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
         if: ${{ steps.db.outputs.ready == 'true' }}
         with:
@@ -38,4 +69,4 @@ jobs:
       - if: ${{ steps.db.outputs.ready == 'true' }}
         run: npm run db:migrate
       - if: ${{ steps.db.outputs.ready == 'true' }}
-        run: npx tsx scripts/hn/import.mts --all --concurrency 4
+        run: npx tsx scripts/hn/import.mts --all --concurrency 4 ${{ steps.changed.outputs.args }}

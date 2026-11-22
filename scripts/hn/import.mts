@@ -3,6 +3,7 @@
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --year 2025
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --all        # every year with verdicts
 //   npx tsx --env-file=.env.local scripts/hn/import.mts --months 2025-01 --dry-run
+//   npx tsx --env-file=.env.local scripts/hn/import.mts --all --changed 2026-08   # write only videos from these months
 //
 // Reads verdicts from .data/hn/verdicts/ (your own classify runs) or, failing that, the committed
 // data/hn/verdicts/, and writes to the same database as `npm run dev`:
@@ -31,6 +32,9 @@ const { values: args } = parseArgs({
     concurrency: { type: "string", default: "6" },
     "data-dir": { type: "string" },
     all: { type: "boolean", default: false },
+    // Months whose verdicts changed since the last import. Everything is still aggregated (so
+    // notes, topics and lists stay complete), but only videos mentioned in these months are written.
+    changed: { type: "string" },
   },
 });
 
@@ -73,11 +77,27 @@ if (missing.length && args.all) {
   process.exit(1);
 }
 
+const changed = args.changed === undefined ? null : new Set(args.changed.split(",").map((m) => m.trim()).filter(Boolean));
+if (changed && [...changed].some((m) => !/^\d{4}-\d{2}$/.test(m))) {
+  console.error("--changed takes YYYY-MM[,YYYY-MM...]");
+  process.exit(2);
+}
+if (changed && !changed.size) {
+  console.log("No verdict months changed; nothing to import.");
+  process.exit(0);
+}
+
 const verdicts: CommentVerdict[] = [];
+const changedVideos = new Set<string>();
 for (const m of months) {
   const file = verdictFile(m);
   if (!file) continue; // a month still in the future
-  for (const line of (await readFile(file, "utf8")).split("\n")) if (line) verdicts.push(JSON.parse(line));
+  for (const line of (await readFile(file, "utf8")).split("\n")) {
+    if (!line) continue;
+    const v: CommentVerdict = JSON.parse(line);
+    verdicts.push(v);
+    if (changed?.has(m)) for (const video of v.videos) changedVideos.add(video.videoId);
+  }
 }
 if (!verdicts.length) {
   console.error(`No verdicts found for ${years.join(", ")}; nothing was imported.`);
@@ -116,12 +136,14 @@ if (args["dry-run"]) {
   process.exit(0);
 }
 
+if (changed) console.log(`Incremental: writing ${changedVideos.size} videos mentioned in ${[...changed].sort().join(", ")}.`);
 console.log(`Importing into ${usePostgres ? "Postgres (DATABASE_URL)" : dir} (${process.env.YOUTUBE_API_KEY ? "YouTube Data API" : "oEmbed, no video lengths"})...`);
 let lastPct = -1;
 const stats = await importHn(aggs, topics, { period }, {
   db,
   metadata: defaultMetadataProvider(),
   concurrency: Number(args.concurrency),
+  onlyVideos: changed ? changedVideos : undefined,
   onProgress: (done, total) => {
     const pct = Math.floor((done / total) * 10) * 10;
     if (pct === lastPct) return;
