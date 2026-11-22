@@ -1,3 +1,4 @@
+import { cacheLife } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -134,8 +135,7 @@ async function Circle({ searchParams }: { searchParams: PageProps<"/">["searchPa
 /** Home: what Vouch is, in one line, then the picks themselves. Nothing to sign up for first. */
 async function Home({ signedIn, searchParams }: { signedIn: boolean; searchParams: PageProps<"/">["searchParams"] }) {
   const sp = await searchParams;
-  const db = await getDb();
-  const [stats, anon, top] = await Promise.all([catalogStats(db), anonContext(), discoverPicks(db, null, { limit: 24 })]);
+  const [stats, anon, top] = await Promise.all([catalogStats(), anonContext(), topPicks()]);
   // The experiment's "no note" browsers don't get a quote in the hero either.
   const lead = anon?.variant === "nonote" ? null : quotable(top.picks)[0] ?? null;
   return (
@@ -157,7 +157,21 @@ async function Home({ signedIn, searchParams }: { signedIn: boolean; searchParam
   );
 }
 
-async function catalogStats(db: Awaited<ReturnType<typeof getDb>>): Promise<CatalogStats> {
+/**
+ * The hero's numbers and lead quote are the same for every signed-out visitor and change only
+ * when the daily import runs, so they are cached for a few minutes instead of scanning the
+ * catalogue on every page view.
+ */
+async function topPicks() {
+  "use cache";
+  cacheLife("minutes");
+  return discoverPicks(await getDb(), null, { limit: 24 });
+}
+
+async function catalogStats(): Promise<CatalogStats> {
+  "use cache";
+  cacheLife("minutes");
+  const db = await getDb();
   const [row] = await db.query<CatalogStats>(
     `with listed as (select distinct v.resource_id from vouches v where v.hidden_at is null)
      select (select count(*)::int from listed) as videos,
