@@ -510,3 +510,59 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .email-row .button { min-height: 3rem; }
 @media (max-width: 30rem) { .email-row { flex-direction: column; } }
 .rec[hidden] { display: none; }
+
+/* Learning keeps the video and its next action together. */
+.learning-tools { display: grid; gap: .55rem; margin-top: .9rem; }
+.learning-buttons { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+.learning-tabs { display: flex; flex-wrap: wrap; gap: 1.4rem; border-bottom: 1px solid var(--rule); margin: 0 0 1.8rem; }
+.learning-tabs a { padding: .65rem 0; color: var(--muted); text-decoration: none; }
+.learning-tabs a[aria-current="page"] { color: var(--pen); box-shadow: inset 0 -2px var(--pen); font-weight: 650; }
+.learning-library { display: grid; }
+.learning-row { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.5rem; padding: 1.5rem 0; border-bottom: 1px solid var(--rule); }
+.learning-image { display: block; aspect-ratio: 16 / 9; background: var(--sunk); border-radius: var(--r-md); overflow: hidden; align-self: start; }
+.learning-image img { width: 100%; height: 100%; object-fit: cover; }
+.learning-details { display: grid; align-content: start; gap: .7rem; }
+.learning-details h2 { font-size: var(--t-xl); line-height: 1.3; max-width: 55ch; }
+.learning-details h2 a { color: var(--ink); text-decoration: none; }
+.learning-details h2 a:hover { color: var(--pen); }
+.learning-next { display: grid; justify-items: start; gap: .8rem; margin-top: 2rem; padding-top: 1.4rem; border-top: 1px solid var(--rule); }
+@media (max-width: 40rem) {
+  .learning-row { grid-template-columns: 1fr; gap: 1rem; }
+  .learning-tabs { gap: 1rem; }
+}
+
+.discover-filters { border: 1px solid var(--rule); border-radius: var(--r-md); padding: 1rem; margin: 0 0 1.5rem; }
+.discover-filters summary { cursor: pointer; font-weight: 650; }
+.discover-filter-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; margin-top: 1rem; }
+.discover-filter-form label { display: grid; gap: .5rem; font-weight: 600; }
+.discover-filter-form input, .discover-filter-form select { width: 100%; min-width: 0; padding: .7rem; font: inherit; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); }
+.discover-filter-form select { min-height: 13rem; }
+.discover-filter-form .muted { font-size: var(--t-sm); font-weight: 400; }
+.discover-filter-fields { display: grid; align-content: start; gap: 1.2rem; }
+@media (max-width: 40rem) { .discover-filter-form { grid-template-columns: 1fr; gap: 1rem; } }
+
+.path-overview { border: 1px solid var(--rule); border-radius: var(--r-md); padding: 1.5rem; margin: 1.5rem 0; }
+.path-goals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; margin-top: 1rem; }
+.path-goals h2 { font-size: var(--t-lg); margin-bottom: .6rem; }
+.path-goals ul { padding-left: 1.2rem; }
+.path-goals li { margin: .45rem 0; }
+.path-progress { display: grid; justify-items: start; gap: .8rem; padding-top: 1.5rem; }
+.path-progress .progress { width: 100%; }
+.path-editor { margin: 1.5rem 0; border: 1px solid var(--rule); border-radius: var(--r-md); padding: 1rem; }
+.path-editor summary { cursor: pointer; font-weight: 650; }
+.path-editor .form { max-width: 42rem; margin-top: 1rem; }
+@media (max-width: 40rem) { .path-goals { grid-template-columns: 1fr; gap: 1rem; } .path-overview { padding: 1rem; } }
+
+.lesson-links { display: grid; gap: .45rem; margin-top: .5rem; font-size: var(--t-sm); }
+.lesson-links a { overflow-wrap: anywhere; line-height: 1.5; }
+.lesson-materials { margin: 1.5rem 0; border: 1px solid var(--rule); border-radius: var(--r-md); padding: 1.25rem; }
+.lesson-materials h2 { font-size: var(--t-lg); }
+.resource-editor { margin-top: .6rem; }
+.resource-editor summary { cursor: pointer; font-size: var(--t-sm); }
+.resource-editor .form { margin-top: 1rem; max-width: 32rem; }
+.resource-editor label { display: grid; gap: .4rem; }
+.resource-editor input, .resource-editor select { width: 100%; min-width: 0; font: inherit; border: 1px solid var(--rule-strong); border-radius: var(--r-sm); padding: .65rem; background: var(--surface); color: var(--ink); }
+.resource-remove { display: flex; gap: .5rem; align-items: center; justify-content: space-between; margin-top: .5rem; }
+.resource-remove span { min-width: 0; overflow-wrap: anywhere; }
+
+.roadmap-editor { max-width: 44rem; } .roadmap-editor label { display:grid; gap:.5rem; } .roadmap-editor input:not([type=checkbox]), .roadmap-editor select, .roadmap-editor textarea { width:100%; min-width:0; padding:.7rem; font:inherit; border:1px solid var(--rule-strong); border-radius:var(--r-sm); background:var(--surface); color:var(--ink); } .roadmap-stage-editor { padding:1rem 0; border-bottom:1px solid var(--rule); } .roadmap-stages { list-style:none; padding:0; } .roadmap-stages > li { margin:1rem 0; padding:1.25rem; border:1px solid var(--rule); border-radius:var(--r-md); } .roadmap-stages h2 { margin:.5rem 0; }

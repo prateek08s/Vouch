@@ -11,7 +11,12 @@ import { TRUST_LABEL, formatDuration, initials, monthYear, plural } from "@/lib/
 import { blockChannelAction, rateAction, reportAction } from "@/app/watch/actions";
 import { REASON_LABEL, REPORT_REASONS } from "@/lib/moderation";
 import { AddToList } from "@/app/lists/ListForms";
-import { myListsFor } from "@/lib/lists";
+import { getList, myListsFor } from "@/lib/lists";
+import { EMPTY_LEARNING, learningState } from "@/lib/learning";
+import { LearningPlayer } from "../LearningPlayer";
+import { CollectionNext } from "@/app/paths/CollectionNext";
+import { lessonResources } from "@/lib/lesson-resources";
+import { LessonLinks } from "@/app/paths/LessonLinks";
 import { Facts } from "@/app/components/Facts";
 import { LocalActions } from "@/app/components/local/LocalActions";
 import { socialEnabled } from "@/lib/flags";
@@ -54,22 +59,18 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
   const r = w.resource;
   const runtime = formatDuration(r.duration_s);
   // Official embed, privacy-enhanced domain, no autoplay (plan 30: avoid autoplay).
-  const embed = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(r.external_id)}?rel=0`;
+  const progress = user ? await learningState(db, user.id, id) : EMPTY_LEARNING;
+  const listRaw = Array.isArray(sp.list) ? sp.list[0] : sp.list;
+  const collection = listRaw && UUID.test(listRaw) ? await getList(db, user?.id ?? null, listRaw) : null;
+  const currentItem = collection?.items.find((item) => item.resource_id === id);
+  const attachments = collection && currentItem ? await lessonResources(db, user?.id ?? null, collection.list.id, id) : [];
   const outside = w.publicVouchCount - w.notes.length;
 
   return (
     <>
       <article className="watch">
         <div>
-          <div className="player">
-            <iframe
-              src={embed}
-              title={`YouTube video player: ${r.title}`}
-              allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
-          </div>
+          <LearningPlayer video={{ id: r.id, videoId: r.external_id, title: r.title, creatorName: r.creator_name, thumbnailUrl: r.thumbnail_url, durationS: r.duration_s }} initial={progress} signedIn={!!user} />
 
           <h1 className="watch-title">{r.title}</h1>
           <Facts items={[r.creator_name, runtime, ...w.topics.map((t) => t.name)]} />
@@ -77,7 +78,6 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
           <div className="watch-tools">
             <a className="tool" href={r.canonical_url} target="_blank" rel="noreferrer">Open on YouTube</a>
             {user && <AddToList resourceId={r.id} lists={myLists} />}
-            <LocalActions resourceId={r.id} title={r.title} thumb={r.thumbnail_url} rate={false} />
             {user && r.creator_external_id && (
               <form action={blockChannelAction} className="inline-form">
                 <input type="hidden" name="resourceId" value={r.id} />
@@ -170,6 +170,10 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
         </aside>
       </article>
 
+      {attachments.length > 0 && <section className="lesson-materials" aria-labelledby="lesson-resources-h">
+        <h2 id="lesson-resources-h">Lesson resources</h2>
+        <LessonLinks resources={attachments} />
+      </section>}
       {hn.total > 0 && (
         <section className="hn" aria-labelledby="hn-h">
           <h2 id="hn-h" className="section-title">Recommended on Hacker News</h2>
@@ -195,7 +199,10 @@ async function Watch({ params, searchParams }: PageProps<"/watch/[id]">) {
           </ul>
         </section>
       )}
-      <p className="back"><Link href="/">{user && social ? "Back to your Circle" : "Browse more picks"}</Link></p>
+      {collection && currentItem && (
+        <CollectionNext listId={collection.list.id} title={collection.list.title} currentId={id} lessons={collection.items} signedIn={!!user} />
+      )}
+      <p className="back"><Link href={user ? "/learning" : "/discover"}>{user ? "Back to My learning" : "Browse more picks"}</Link></p>
     </>
   );
 }

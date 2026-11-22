@@ -5,6 +5,8 @@ import type { Db } from "@/lib/db";
  * Generous on purpose: they stop loops and scripts, not ordinary use.
  */
 export const LIMITS = {
+  /** Playback samples and explicit save/progress updates. */
+  learning: { max: 1200, windowS: 3600 },
   /** Pasting links: each new video costs a YouTube API call. */
   ingest: { max: 30, windowS: 3600 },
   /** Full-text search is the most expensive read. */

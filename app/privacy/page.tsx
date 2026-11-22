@@ -14,7 +14,7 @@ export default function PrivacyPage() {
 
       <h2>Without an account</h2>
       <ul>
-        <li><strong>Saved, watched and your Worth-it answers</strong> are kept in this browser only (local storage). Clearing your browser data removes them, and you can download a copy from <Link href="/saved">Saved</Link>.</li>
+        <li><strong>Saved videos, playback position, watched or skipped choices, and your Worth-it answers</strong> are kept in this browser only (local storage). Clearing your browser data removes them, and you can download a copy from <Link href="/saved">Saved</Link>.</li>
         <li><strong>A random browser ID</strong> in a first-party cookie (<code>vouch_aid</code>). With it we count, per browser, which picks were shown, which were opened, and Worth-it answers, so we can tell whether the picks are any good. It is never linked to your name, your account or other sites, and these records are deleted after 90 days.</li>
         <li>Some browsers see picks without the Hacker News comment, so we can measure whether the comment helps. Every video page still shows it.</li>
       </ul>
@@ -22,6 +22,7 @@ export default function PrivacyPage() {
       <h2>With an account</h2>
       <ul>
         <li><strong>Your profile:</strong> the name, username and picture your sign-in provider (GitHub) shares, or just your email address if you sign in by email link, and anything you add, such as a bio.</li>
+        <li><strong>Saved videos and playback progress:</strong> when signed in, Vouch stores your saved videos, playback position and watched or skipped choices privately with your account. Playback updates are sent about every ten seconds while playing and when you pause. They are included in account exports and removed when you delete your account. Browser history from before sign-in stays on that device.</li>
         <li><strong>Your vouches:</strong> the videos you vouch for, your notes and topics. These are public and appear with your name.</li>
         <li><strong>Your Worth-it ratings:</strong> private. Other people never see your individual ratings. They contribute to totals, such as how often a curator&apos;s picks are rated Worth it, which are shown only once enough people have rated.</li>
         <li><strong>Follows, lists, topics and rules:</strong> follows and public lists are visible to others; private lists and your rules are not.</li>

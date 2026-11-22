@@ -20,8 +20,8 @@ export const LENGTHS = {
 export type LengthKey = keyof typeof LENGTHS;
 export const SORTS = { top: "Most recommended", newest: "Newest", shortest: "Shortest first" } as const;
 export type SortKey = keyof typeof SORTS;
-export const isLength = (v: string): v is LengthKey => v in LENGTHS;
-export const isSort = (v: string): v is SortKey => v in SORTS;
+export const isLength = (v: string): v is LengthKey => Object.hasOwn(LENGTHS, v);
+export const isSort = (v: string): v is SortKey => Object.hasOwn(SORTS, v);
 
 export type DiscoverPick = PublicPick & {
   creatorName: string | null;
@@ -42,6 +42,7 @@ export async function discoverPicks(
   opts: {
     topic?: string | null; cursor?: number; limit?: number; now?: Date;
     length?: LengthKey | null; sort?: SortKey;
+    topics?: string[]; channel?: string; maxMinutes?: number | null;
   } = {},
 ): Promise<{ picks: DiscoverPick[]; nextCursor: number | null; hiddenByRules: number }> {
   const now = opts.now ?? new Date();
@@ -49,11 +50,13 @@ export async function discoverPicks(
   const cursor = Math.max(0, opts.cursor ?? 0);
   const topics = await loadTopics(db);
   let topicIds: number[] | null = null;
-  if (opts.topic) {
-    const root = topics.bySlug.get(opts.topic);
-    if (!root) return { picks: [], nextCursor: null, hiddenByRules: 0 };
-    topicIds = [...topics.byId.values()].filter((t) => topics.lineage(t.id).includes(root.slug)).map((t) => t.id);
+  const selected = [...new Set(opts.topics ?? (opts.topic ? [opts.topic] : []))];
+  if (selected.length) {
+    if (selected.some((slug) => !topics.bySlug.has(slug))) return { picks: [], nextCursor: null, hiddenByRules: 0 };
+    topicIds = [...topics.byId.values()].filter((t) => topics.lineage(t.id).some((slug) => selected.includes(slug))).map((t) => t.id);
   }
+  const channel = opts.channel?.trim().slice(0, 120) || null;
+  const maxSeconds = opts.maxMinutes != null && Number.isInteger(opts.maxMinutes) && opts.maxMinutes >= 1 && opts.maxMinutes <= 1440 ? opts.maxMinutes * 60 : null;
   const len = opts.length ? LENGTHS[opts.length] : null;
   const order = { top: "s.score desc", newest: "s.latest_any desc", shortest: "r.duration_s asc nulls last" }[opts.sort ?? "top"];
   const rows = await db.query<{
@@ -75,6 +78,8 @@ export async function discoverPicks(
        left join vouch_topics vt on vt.vouch_id = v.id
        where r.metadata_status <> 'unavailable'
          and ($5::int is null or r.duration_s >= $5) and ($6::int is null or r.duration_s < $6)
+         and ($7::int is null or r.duration_s <= $7)
+         and ($8::text is null or strpos(lower(coalesce(r.creator_name, '')), lower($8)) > 0)
          and ($2::uuid is null or not exists (select 1 from vouches mine where mine.user_id = $2 and mine.resource_id = r.id))
          and ($2::uuid is null or not exists (select 1 from ratings x where x.user_id = $2 and x.resource_id = r.id))
        group by r.id
@@ -111,7 +116,7 @@ export async function discoverPicks(
      ) hm on true
      order by ${order}, s.score desc, s.id
      limit 400`,
-    [topicIds, viewerId, new Date(now.getTime() - RECENT_DAYS * 86_400_000), now, len?.min || null, len?.max ?? null],
+    [topicIds, viewerId, new Date(now.getTime() - RECENT_DAYS * 86_400_000), now, len?.min || null, len?.max ?? null, maxSeconds, channel],
   );
   const rules = viewerId ? await listRules(db, viewerId) : [];
   const { kept, removed } = applyRules(

@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { openPglite, type Db } from "@/lib/db";
 import * as fx from "@/lib/test/fixtures";
 import { rate } from "@/lib/ratings";
+import { setLearningStatus } from "@/lib/learning";
 import { createRule } from "@/lib/rules";
 import { createVouch } from "@/lib/vouches";
 import {
@@ -170,13 +171,15 @@ describe("following and privacy", () => {
 });
 
 describe("upNextFromLists", () => {
-  it("shows the first unrated item with its position", async () => {
+  it("shows the first unfinished item with its position", async () => {
     const owner = await fx.user(db);
     const viewer = await fx.user(db);
     const { list, ids } = await listWith(owner, 4);
     await followList(db, viewer, list.id);
     await rate({ userId: viewer, resourceId: ids[0], worthIt: true }, { db });
     await rate({ userId: viewer, resourceId: ids[1], worthIt: false }, { db });
+    await setLearningStatus(db, viewer, ids[0], "watched");
+    await setLearningStatus(db, viewer, ids[1], "skipped");
     const [next] = await upNextFromLists(db, viewer);
     expect(next).toMatchObject({ listTitle: "Learn Rust from Zero", index: 2, total: 4, item: { title: "Part 3" } });
   });
@@ -206,6 +209,7 @@ describe("upNextFromLists", () => {
     await followList(db, viewer, done.list.id);
     await followList(db, viewer, priv.list.id);
     await rate({ userId: viewer, resourceId: done.ids[0], worthIt: true }, { db });
+    await setLearningStatus(db, viewer, done.ids[0], "watched");
     await db.query("update lists set is_public = false where id = $1", [priv.list.id]);
     expect(await upNextFromLists(db, viewer)).toEqual([]);
   });

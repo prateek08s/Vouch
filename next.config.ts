@@ -12,7 +12,7 @@ const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com${dev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://i.ytimg.com https://avatars.githubusercontent.com",
   "font-src 'self' data:",
@@ -33,6 +33,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // No Next.js "N" badge in development; build and runtime errors still show.
+  devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
   // PGlite ships WASM + data files that must be loaded from node_modules, not bundled.

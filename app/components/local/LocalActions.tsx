@@ -27,7 +27,6 @@ export function LocalActions({
   const answer = (worth: boolean) => {
     updateLocal((s) => {
       s.ratings[resourceId] = worth;
-      s.watched[resourceId] ??= Date.now();
     });
     start(() => anonRateAction(resourceId, worth));
   };
@@ -44,7 +43,7 @@ export function LocalActions({
           {rating === undefined ? (
             <p>No account needed. Your answer stays in this browser and is counted anonymously.</p>
           ) : (
-            <p className="done" role="status">{rating ? "Marked Worth it." : "Marked Not worth it."} It also counts as watched.</p>
+            <p className="done" role="status">{rating ? "Marked Worth it." : "Marked Not worth it."}</p>
           )}
         </section>
       )}

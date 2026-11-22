@@ -1,6 +1,7 @@
 import type { Db } from "@/lib/db";
 import { applyRules, listRules } from "@/lib/rules";
 import { loadTopics } from "@/lib/topics";
+import type { LearningStatus } from "@/lib/learning/model";
 
 /** An ordered human collection (plan 5.6). Followable. */
 
@@ -27,6 +28,7 @@ export type ListItem = {
   thumbnail_url: string | null;
   metadata_status: string;
   rated: boolean | null;
+  status: LearningStatus | null;
 };
 
 export type ListError =
@@ -152,7 +154,7 @@ export async function deleteList(db: Db, ownerId: string, listId: string): Promi
 }
 
 /** Visible lists only: public ones, or your own. */
-async function visibleList(db: Db, viewerId: string, listId: string): Promise<List | null> {
+async function visibleList(db: Db, viewerId: string | null, listId: string): Promise<List | null> {
   const [l] = await db.query<List>("select * from lists where id = $1 and (is_public or owner_id = $2)", [listId, viewerId]);
   return l ?? null;
 }
@@ -176,17 +178,21 @@ export type ListView = {
   followerCount: number;
   isFollowing: boolean;
   isOwner: boolean;
+  hiddenByRules: number;
 };
 
-export async function getList(db: Db, viewerId: string, listId: string): Promise<ListView | null> {
+export async function getList(db: Db, viewerId: string | null, listId: string): Promise<ListView | null> {
   const list = await visibleList(db, viewerId, listId);
   if (!list) return null;
   const [owner] = await db.query<ListView["owner"]>("select id, username, display_name from users where id = $1", [list.owner_id]);
-  const items = await db.query<ListItem>(
+  const rows = await db.query<ListItem & { creator_id: string | null; is_short: boolean; topic_ids: number[] }>(
     `select li.resource_id, li.position, li.note, r.title, r.creator_name, r.duration_s, r.thumbnail_url,
-            r.metadata_status, rt.worth_it as rated
+            r.metadata_status, rt.worth_it as rated, p.status,
+            r.creator_external_id as creator_id, r.is_short,
+            array(select topic_id from resource_topics where resource_id = r.id) as topic_ids
      from list_items li join resources r on r.id = li.resource_id
      left join ratings rt on rt.user_id = $2 and rt.resource_id = li.resource_id
+     left join watch_progress p on p.user_id = $2 and p.resource_id = li.resource_id
      where li.list_id = $1 order by li.position`,
     [listId, viewerId],
   );
@@ -195,7 +201,19 @@ export async function getList(db: Db, viewerId: string, listId: string): Promise
      from list_follows where list_id = $1`,
     [listId, viewerId],
   );
-  return { list, owner, items, followerCount: n, isFollowing: following, isOwner: list.owner_id === viewerId };
+  let items: ListItem[] = rows;
+  let hiddenByRules = 0;
+  if (viewerId && list.owner_id !== viewerId) {
+    const [rules, topics] = await Promise.all([listRules(db, viewerId), loadTopics(db)]);
+    const filtered = applyRules(rows.map((r) => ({
+      ...r, resourceId: r.resource_id, creatorId: r.creator_id, creatorName: r.creator_name,
+      durationS: r.duration_s, isShort: r.is_short,
+      topicSlugs: [...new Set(r.topic_ids.flatMap((topicId) => topics.lineage(topicId)))],
+    })), rules);
+    items = filtered.kept;
+    hiddenByRules = filtered.removed.length;
+  }
+  return { list, owner, items, followerCount: n, isFollowing: following, isOwner: list.owner_id === viewerId, hiddenByRules };
 }
 
 export type ListSummary = List & { item_count: number; owner_name: string; follower_count: number; following: boolean };
@@ -230,14 +248,14 @@ export type UpNext = {
 };
 
 /**
- * For each followed list, the first video the viewer has not rated that their rules allow.
+ * For each followed list, the first video that is neither watched nor skipped and that their rules allow.
  * Lists are paths, so "next" beats re-ranking. Finished lists are omitted.
  */
 export async function upNextFromLists(db: Db, viewerId: string): Promise<UpNext[]> {
   const rows = await db.query<ListItem & { list_id: string; list_title: string; owner_name: string; creator_external_id: string | null; is_short: boolean; topic_ids: number[] }>(
     `select l.id as list_id, l.title as list_title, u.display_name as owner_name,
             li.resource_id, li.position, li.note, r.title, r.creator_name, r.creator_external_id, r.duration_s,
-            r.thumbnail_url, r.metadata_status, r.is_short, rt.worth_it as rated,
+            r.thumbnail_url, r.metadata_status, r.is_short, rt.worth_it as rated, p.status,
             coalesce((select array_agg(topic_id) from resource_topics x where x.resource_id = r.id), '{}') as topic_ids
      from list_follows f
      join lists l on l.id = f.list_id and (l.is_public or l.owner_id = $1)
@@ -245,6 +263,7 @@ export async function upNextFromLists(db: Db, viewerId: string): Promise<UpNext[
      join list_items li on li.list_id = l.id
      join resources r on r.id = li.resource_id
      left join ratings rt on rt.user_id = $1 and rt.resource_id = r.id
+     left join watch_progress p on p.user_id = $1 and p.resource_id = r.id
      where f.user_id = $1
      order by f.created_at, l.id, li.position`,
     [viewerId],
@@ -258,7 +277,7 @@ export async function upNextFromLists(db: Db, viewerId: string): Promise<UpNext[
   const out: UpNext[] = [];
   for (const items of byList.values()) {
     const candidates = items
-      .filter((i) => i.rated === null && i.metadata_status !== "unavailable")
+      .filter((i) => i.status !== "watched" && i.status !== "skipped" && i.metadata_status !== "unavailable")
       .map((i) => ({
         ...i,
         resourceId: i.resource_id,
@@ -281,6 +300,7 @@ export async function upNextFromLists(db: Db, viewerId: string): Promise<UpNext[
       thumbnail_url: next.thumbnail_url,
       metadata_status: next.metadata_status,
       rated: next.rated,
+      status: next.status,
     };
     out.push({
       listId: next.list_id,

@@ -16,7 +16,7 @@ export function PublicPicks({ picks, showCurator = true, showReason = true }: { 
     return (
       <div className="empty">
         <strong>No picks match.</strong>
-        <p>Try another topic or length.</p>
+        <p>Try fewer filters or a different topic, channel, or time budget.</p>
       </div>
     );
   }

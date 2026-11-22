@@ -5,6 +5,8 @@
 import { Pool } from "pg";
 import { openPglite, type Db } from "@/lib/db";
 import { postgresDb } from "@/lib/db/postgres";
+import { savePath } from "@/lib/paths";
+import { addLessonResource } from "@/lib/lesson-resources";
 
 const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, max: 1 }) : null;
 const db: Db & { close?: () => Promise<void> } = pool ? postgresDb(pool) : await openPglite(process.env.VOUCH_DATA_DIR ?? ".data/pglite");
@@ -50,6 +52,19 @@ await db.transaction(async (tx) => {
     await tx.query("insert into list_items (list_id, resource_id, position) values ($1, $2, $3)", [list.id, rid, i]);
   }
 });
-console.log("Seeded browser-test catalogue: 3 videos, 1 list.");
+const [pathList] = await db.query<{ id: string; owner_id: string }>("select id, owner_id from lists where system_key = 'e2e'");
+const pathResult = await savePath(db, pathList.owner_id, pathList.id, {
+  enabled: true, level: "beginner", prerequisites: "Basic algebra",
+  outcomes: "Explain a neural network\nConnect a visual model with its underlying idea",
+});
+if (!pathResult.ok) throw new Error(pathResult.error);
+const [firstLesson] = await db.query<{ resource_id: string }>("select resource_id from list_items where list_id = $1 order by position limit 1", [pathList.id]);
+for (const kind of ["code", "notebook", "paper"]) {
+  const result = await addLessonResource(db, pathList.owner_id, pathList.id, firstLesson.resource_id, {
+    kind, title: `Lesson example ${kind}`, url: `https://example.org/lesson-${kind}`,
+  });
+  if (!result.ok) throw new Error(result.error);
+}
+console.log("Seeded browser-test catalogue: 3 videos, 1 learning path, 3 resource links.");
 await (pool ? pool.end() : db.close?.());
 process.exit(0);

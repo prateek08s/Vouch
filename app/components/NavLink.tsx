@@ -6,11 +6,11 @@ import { socialEnabled } from "@/lib/flags";
 
 const SOCIAL_NAV = [
   { href: "/", label: "Circle" },
-  { href: "/discover", label: "Discover" },
+  { href: "/discover", label: "Explore" },
+  { href: "/learning", label: "My learning" },
   { href: "/search", label: "Search" },
   { href: "/lists", label: "Lists" },
   { href: "/people", label: "People" },
-  { href: "/saved", label: "Saved" },
   { href: "/settings", label: "Settings" },
 ] as const;
 
@@ -19,7 +19,7 @@ const PLAIN_NAV = [
   { href: "/", label: "Discover" },
   { href: "/search", label: "Search" },
   { href: "/lists", label: "Collections" },
-  { href: "/saved", label: "Saved" },
+  { href: "/learning", label: "My learning" },
 ] as const;
 
 export const NAV = socialEnabled() ? SOCIAL_NAV : PLAIN_NAV;

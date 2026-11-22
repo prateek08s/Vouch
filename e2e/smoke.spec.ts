@@ -18,7 +18,8 @@ test("signed out, a viewer can rate, save and hide what they watched", async ({ 
   await page.getByRole("link", { name: "But what is a neural network?" }).first().click();
   await expect(page).toHaveURL(/\/watch\//);
   await page.getByRole("button", { name: "Worth it", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Marked Worth it");
+  await expect(page.locator(".worth [role=status]")).toContainText("Marked Worth it");
+  await page.getByRole("button", { name: "Mark watched", exact: true }).click();
   await page.getByRole("button", { name: "Save for later" }).click();
   await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
 

@@ -40,10 +40,65 @@ The note experiment: a first-party `vouch_aid` cookie gives each browser a rando
 shows browsers, returning browsers, shown, opened and Worth it per variant; the daily cron deletes
 those events after 90 days.
 
+## Lesson resources
+
+Collection owners can add code, notebook, paper, reading, roadmap and other links to individual lessons.
+Open an owned collection and choose Manage lesson resources below a video. Each lesson supports
+up to 8 titled HTTPS links. The links appear in the collection and on the watch page when opened
+from that collection, with the destination hostname visible.
+
+Resources inherit collection privacy. Removing a lesson also removes its resource links, and
+account exports include owned resources. Migration `0017_lesson_resources.sql` creates the table
+with RLS and a cascading foreign key to the lesson. Resources open on external sites.
+
+## Learning paths
+
+Collection owners can turn a list into a learning path from its settings, adding a curator-assigned
+level, prerequisites and 1 to 8 learning outcomes. Lessons keep the collection's existing order and
+privacy. Public paths with available lessons appear at `/paths`, linked from Collections.
+
+The path overview offers Start or Continue learning and tracks watched lessons separately from
+skips. Guest progress uses the same browser history as My learning. Unavailable lessons are shown
+but excluded from progress totals. Skipped lessons can be revisited without being counted as watched.
+Prerequisites describe expected knowledge and do not lock lessons.
+
+Migration `0016_learning_paths.sql` adds path metadata with RLS and cascading deletion. Account
+exports include owned path metadata. No existing HN collection is automatically labelled a course.
+Roadmap references can be attached to lessons as external links. The interactive builder at /roadmaps connects up to 20 learning paths with editable stage order, private/public sharing, and watched-stage progress.
+
+## Discovery filters
+
+Discover and the home page support multiple topics (match any, including subtopics), a literal
+channel-name search, and a time budget in minutes. Open More filters to combine them with the
+existing length buckets and sorting. Filters are kept in the URL, including across pagination,
+so filtered views can be bookmarked or shared. Time budgets exclude unknown runtimes. Difficulty
+and format filters remain future work until the catalogue has reliable labels.
+
+## My learning
+
+`/learning` has Continue watching, Saved and History views. Video pages offer Save for later,
+Mark watched and Skip, each independent of Worth it ratings. Playback position saves every ten
+seconds while playing, on pause and when leaving the page. Reopening an unfinished video cues
+the saved position without autoplay. Reaching 90% or the end marks it watched. Manual controls
+still work when YouTube's player API is blocked.
+
+Guests use the existing `vouch.v1` browser storage, preserving saved videos and ratings. Signed-in
+viewers keep private saves and progress in the database across devices. Guest history is not
+automatically imported when signing in. Account export and deletion include learning data.
+
+Migration `0015_learning_progress.sql` creates private saves and explicit completion states.
+Existing ratings are backfilled as watched once to preserve the previous queue behavior. New
+ratings do not mark a video watched. Run `npm run db:migrate` before deploying against Postgres.
+Local PGlite applies pending migrations when the database opens.
+
+Public collection watch links preserve collection context and offer the next available video.
+Account queues omit watched and skipped videos and apply the viewer's filtering rules.
+External roadmap references are supported through lesson resources.
+
 ## Test it
 
 ```bash
-npm test               # 479 tests: unit + database integration (real Postgres via PGlite)
+npm test               # unit + database integration (Postgres via PGlite)
 npm run typecheck
 npm run lint
 node --experimental-transform-types scripts/smoke-oembed.mts   # live YouTube check

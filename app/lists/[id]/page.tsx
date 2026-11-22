@@ -9,8 +9,13 @@ import { getList } from "@/lib/lists";
 import { formatDuration, plural } from "@/lib/format";
 import { deleteListAction, followListAction, listItemAction } from "@/app/lists/actions";
 import { Facts } from "@/app/components/Facts";
+import { pathMetadata, PATH_LEVELS } from "@/lib/paths";
+import { PathEditor } from "@/app/paths/PathEditor";
+import { PathProgress } from "@/app/paths/PathProgress";
+import { lessonResources } from "@/lib/lesson-resources";
+import { LessonLinks } from "@/app/paths/LessonLinks";
+import { ResourceEditor } from "@/app/paths/ResourceEditor";
 
-const NOBODY = "00000000-0000-0000-0000-000000000000";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function ListPage(props: PageProps<"/lists/[id]">) {
@@ -26,10 +31,16 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
   const user = await getCurrentUser();
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const v = await getList(await getDb(), user?.id ?? NOBODY, id);
+  const v = await getList(await getDb(), user?.id ?? null, id);
   if (!v) notFound();
   const { list, items } = v;
-  const done = items.filter((i) => i.rated !== null).length;
+  const db = await getDb();
+  const [path, attachments] = await Promise.all([
+    pathMetadata(db, user?.id ?? null, id), lessonResources(db, user?.id ?? null, id),
+  ]);
+  const watched = items.filter((i) => i.status === "watched").length;
+  const skipped = items.filter((i) => i.status === "skipped").length;
+  const done = watched + skipped;
   const pct = items.length ? Math.round((done / items.length) * 100) : 0;
 
   return (
@@ -42,10 +53,10 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
         <h1>{list.title}</h1>
         {list.description && <p className="intro">{list.description}</p>}
         <Facts items={[plural(items.length, "video", "videos"), v.followerCount > 0 && plural(v.followerCount, "follower", "followers")]} />
-        {items.length > 0 && (
+        {!path && user && items.length > 0 && (
           <div className="list-progress">
-            <span>{done} of {items.length} watched</span>
-            <div className="progress" role="progressbar" aria-label="Watched" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <span>{watched} watched{skipped > 0 ? `, ${skipped} skipped` : ""} of {items.length}</span>
+            <div className="progress" role="progressbar" aria-label="Watched or skipped" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
               <span style={{ width: `${pct}%` }} />
             </div>
           </div>
@@ -61,6 +72,18 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
         )}
       </header>
 
+      {path && <section className="path-overview" aria-label="About this learning path">
+        <p className="kicker">Learning path · {PATH_LEVELS[path.level]} · Level set by the curator</p>
+        <div className="path-goals">
+          <div><h2>Before you start</h2>{path.prerequisites.length ? <ul>{path.prerequisites.map((text) => <li key={text}>{text}</li>)}</ul> : <p>No prerequisites listed by the curator.</p>}</div>
+          <div><h2>What you will learn</h2><ul>{path.outcomes.map((text) => <li key={text}>{text}</li>)}</ul></div>
+        </div>
+        <PathProgress listId={list.id} lessons={items} signedIn={!!user} />
+      </section>}
+      {v.isOwner && <PathEditor listId={list.id} metadata={path} />}
+
+      {!user && <p className="section-note"><Link href="/signin">Sign in</Link> to follow this list and sync progress across devices.</p>}
+      {v.hiddenByRules > 0 && <p className="section-note">{plural(v.hiddenByRules, "video is", "videos are")} hidden by your <Link href="/settings/rules">rules</Link>.</p>}
       {items.length === 0 ? (
         <div className="empty">
           <strong>{v.isOwner ? "No videos yet." : "This list is empty."}</strong>
@@ -69,24 +92,27 @@ async function ListView({ params }: PageProps<"/lists/[id]">) {
       ) : (
         <ol className="list-items">
           {items.map((it, idx) => (
-            <li key={it.resource_id} className={it.rated !== null ? "watched" : undefined}>
+            <li key={it.resource_id} className={it.status === "watched" || it.status === "skipped" ? "watched" : undefined}>
               <span className="list-num" aria-hidden="true">{idx + 1}</span>
               {it.thumbnail_url && <Image unoptimized className="thumb list-thumb" src={it.thumbnail_url} alt="" width={160} height={90} />}
-              <span className="grow">
+              <div className="grow">
                 {it.metadata_status === "unavailable" ? (
                   <span>{it.title} <span className="pill quiet">No longer available</span></span>
                 ) : (
-                  <Link href={`/watch/${it.resource_id}`}>{it.title}</Link>
+                  <Link href={`/watch/${it.resource_id}?list=${list.id}`}>{it.title}</Link>
                 )}
                 <Facts
                   items={[
                     it.creator_name,
                     formatDuration(it.duration_s),
+                    it.status === "watched" ? "Watched" : it.status === "skipped" ? "Skipped" : null,
                     it.rated === true ? "You: Worth it" : it.rated === false ? "You: Not worth it" : null,
                   ]}
                 />
                 {it.note && <span className="item-note">“{it.note}”</span>}
-              </span>
+                <LessonLinks resources={attachments.filter((attachment) => attachment.resource_id === it.resource_id)} />
+                {v.isOwner && <ResourceEditor listId={list.id} resourceId={it.resource_id} resources={attachments.filter((attachment) => attachment.resource_id === it.resource_id)} />}
+              </div>
               {v.isOwner && (
                 <span className="list-controls">
                   <ItemButton listId={list.id} resourceId={it.resource_id} op="move" to={idx - 1} disabled={idx === 0} label={`Move “${it.title}” up`}>↑</ItemButton>

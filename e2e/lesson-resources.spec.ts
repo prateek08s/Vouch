@@ -1,0 +1,20 @@
+import { expect, test } from "@playwright/test";
+test("lesson resources appear in their collection and watch context without exposing editing", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("/paths");
+  const href = await page.getByRole("link", { name: "E2E Starter List", exact: true }).getAttribute("href");
+  await page.goto(href!);
+  await expect(page.getByRole("link", { name: /Lesson example code/ })).toHaveAttribute("href", "https://example.org/lesson-code");
+  await expect(page.getByText("Manage lesson resources", { exact: true })).toHaveCount(0);
+  const lesson = await page.getByRole("link", { name: "Start learning", exact: true }).getAttribute("href");
+  await page.goto(lesson!);
+  const materials = page.getByRole("region", { name: "Lesson resources", exact: true });
+  await expect(materials.getByRole("link", { name: /Lesson example code/ })).toBeVisible();
+  await expect(materials.getByRole("link", { name: /Lesson example notebook/ })).toBeVisible();
+  await expect(materials.getByRole("link", { name: /Lesson example paper/ })).toHaveAttribute("rel", "noopener noreferrer");
+  await page.reload();
+  await expect(materials.getByRole("link")).toHaveCount(3);
+  await page.goto(new URL(page.url()).pathname);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lesson resources", exact: true })).toHaveCount(0);
+});

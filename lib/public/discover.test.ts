@@ -91,3 +91,19 @@ it("credits the Hacker News commenter whose words are the note", async () => {
   expect(pick.hn).toMatchObject({ author: "bob", url: "https://news.ycombinator.com/item?id=222", total: 3 });
   expect(pick.hn!.postedAt.toISOString()).toBe("2025-04-10T00:00:00.000Z");
 });
+
+it("matches several topics including descendants and fails closed for an unknown topic",async()=>{
+  await vouch(["gpu"],1,"Hardware"); await vouch(["biology"],1,"Biology"); await vouch(["web"],1,"Web");
+  expect((await discoverPicks(db,null,{topics:["hardware","biology"],now:NOW})).picks.map(p=>p.title).sort()).toEqual(["Biology","Hardware"]);
+  expect((await discoverPicks(db,null,{topics:["hardware","missing"],now:NOW})).picks).toEqual([]);
+});
+it("combines literal channel matching with an inclusive runtime budget",async()=>{
+  const a=await vouch(["gpu"],1,"Fits"),b=await vouch(["biology"],1,"Too long"),c=await vouch(["gpu"],1,"Unknown runtime");
+  await vouch(["gpu"],1,"Other channel");
+  for(const id of [a.r,b.r,c.r]) await db.query("update resources set creator_name=$2 where id=$1",[id,"Teacher %_ + Friends"]);
+  await db.query("update resources set duration_s=900 where id=$1",[a.r]);
+  await db.query("update resources set duration_s=901 where id=$1",[b.r]);
+  await db.query("update resources set duration_s=null where id=$1",[c.r]);
+  expect((await discoverPicks(db,null,{topics:["hardware","biology"],channel:"TEACHER %_",maxMinutes:15,now:NOW})).picks.map(p=>p.title)).toEqual(["Fits"]);
+  expect((await discoverPicks(db,null,{channel:"' OR true --",now:NOW})).picks).toEqual([]);
+});

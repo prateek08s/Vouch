@@ -201,7 +201,7 @@ function UpNextSection({ items }: { items: UpNext[] }) {
             <div className="progress" aria-hidden="true">
               <span style={{ width: `${Math.round((u.index / Math.max(1, u.total)) * 100)}%` }} />
             </div>
-            <Link className="title" href={`/watch/${u.item.resource_id}`}>{u.item.title}</Link>
+            <Link className="title" href={`/watch/${u.item.resource_id}?list=${u.listId}`}>{u.item.title}</Link>
             <Facts items={[`List by ${u.ownerName}`, formatDuration(u.item.duration_s)]} />
             {u.item.note && <p className="note sm indent">{u.item.note}</p>}
           </li>

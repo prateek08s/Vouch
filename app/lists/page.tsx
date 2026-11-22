@@ -25,6 +25,7 @@ export default function ListsPage() {
             : "Hacker News picks gathered by topic, and any lists you make."}
         </p>
       </header>
+      <p className="section-note"><Link href="/paths">Explore learning paths</Link> with prerequisites and clear learning outcomes.</p>
       <Suspense fallback={<p className="muted">Loading lists…</p>}>
         <Lists />
       </Suspense>
