@@ -39,8 +39,3 @@ export async function unfollow(db: Db, followerId: string, followeeId: string): 
   );
   return rows.length > 0;
 }
-
-export async function followingIds(db: Db, userId: string): Promise<string[]> {
-  const rows = await db.query<{ followee_id: string }>("select followee_id from follows where follower_id = $1", [userId]);
-  return rows.map((r) => r.followee_id);
-}

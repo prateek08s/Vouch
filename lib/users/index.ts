@@ -65,11 +65,6 @@ export async function createUser(
   return { ok: true, user: rows[0] };
 }
 
-export async function getUserByUsername(db: Db, username: string): Promise<User | null> {
-  const rows = await db.query<User>("select * from users where username = $1", [normalizeUsername(username)]);
-  return rows[0] ?? null;
-}
-
 export type ProfileError = CreateUserError;
 
 export const PROFILE_ERROR_MESSAGES: Record<ProfileError, string> = {

@@ -1,9 +1,6 @@
 /** Month arithmetic for the Hacker News pipeline. Months are "YYYY-MM", always UTC. */
 
 export const FIRST_MONTH = "2025-01";
-const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-export const isMonth = (m: string) => MONTH.test(m);
 
 export function monthOf(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
